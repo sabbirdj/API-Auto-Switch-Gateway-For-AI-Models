@@ -201,22 +201,55 @@ adminRouter.delete('/logs', (req: Request, res: Response) => {
   res.json({ ok: true });
 });
 
-// ── Quick playground test ─────────────────────────────────────────────────────
+// ── Clear 0ms cache ───────────────────────────────────────────────────────────
+adminRouter.post('/cache/clear', (req: Request, res: Response) => {
+  import('../../engine/cache.js').then(({ responseCache }) => {
+    responseCache.clear();
+    res.json({ ok: true, message: 'Cache cleared' });
+  });
+});
+
+// ── Quick playground test (with real-time streaming & TTFT) ───────────────────
 adminRouter.post('/test', async (req: Request, res: Response) => {
-  const { prompt, model, providerId } = req.body;
+  const { prompt, model, providerId, stream } = req.body;
   if (!prompt) return res.status(400).json({ error: 'prompt required' });
 
   const pid = providerId || storage.getSettings().defaultProviderId;
   const provider = storage.getProvider(pid);
+  const targetModel = model || provider?.defaultModel || 'default';
 
-  try {
-    const start = Date.now();
-    const result = await keyRouter.execute(
-      { model: model || provider?.defaultModel || 'default', messages: [{ role: 'user', content: prompt }] },
-      pid
-    );
-    res.json({ ok: true, result, latencyMs: Date.now() - start });
-  } catch (err: any) {
-    res.status(502).json({ ok: false, error: err.message });
+  if (stream) {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders?.();
+
+    try {
+      await keyRouter.execute(
+        { model: targetModel, messages: [{ role: 'user', content: prompt }], stream: true },
+        pid,
+        (chunk) => {
+          res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+        }
+      );
+      res.write('data: [DONE]\n\n');
+      res.end();
+    } catch (err: any) {
+      res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+      res.write('data: [DONE]\n\n');
+      res.end();
+    }
+  } else {
+    try {
+      const start = Date.now();
+      const result = await keyRouter.execute(
+        { model: targetModel, messages: [{ role: 'user', content: prompt }] },
+        pid
+      );
+      res.json({ ok: true, result, latencyMs: Date.now() - start });
+    } catch (err: any) {
+      res.status(502).json({ ok: false, error: err.message });
+    }
   }
 });

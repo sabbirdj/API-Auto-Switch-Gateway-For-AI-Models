@@ -6,6 +6,7 @@ import {
 } from '../types/openai.js';
 import { storage, ProviderConfig } from '../db/storage.js';
 import { adapterRegistry, ProviderError } from '../adapters/index.js';
+import { responseCache } from './cache.js';
 
 export class KeyRotationRouter {
   /**
@@ -25,7 +26,47 @@ export class KeyRotationRouter {
     const settings = storage.getSettings();
     const model = req.model || provider.defaultModel;
 
-    // Try each available key in round-robin order
+    // ── 1. Check instant 0ms in-memory cache ────────────────────────────────
+    if (settings.enableCache !== false) {
+      const cached = responseCache.get(providerId, req, (settings.cacheTtlSec || 600) * 1000);
+      if (cached) {
+        if (req.stream && onChunk) {
+          const content = cached.choices[0]?.message?.content || '';
+          onChunk({
+            id: cached.id,
+            object: 'chat.completion.chunk',
+            created: Math.floor(Date.now() / 1000),
+            model,
+            choices: [{ index: 0, delta: { content }, finish_reason: 'stop' }],
+            usage: cached.usage,
+          });
+        }
+
+        storage.logRequest({
+          id: uuidv4(),
+          timestamp: Date.now(),
+          provider: provider.name,
+          keyLabel: 'cache (0ms)',
+          model,
+          status: 'success',
+          statusCode: 200,
+          latencyMs: 1,
+          ttftMs: 1,
+          cached: true,
+          stream: !!req.stream,
+          keyIndex: -1,
+          switchedKeys: false,
+          tokens: cached.usage
+            ? { prompt: cached.usage.prompt_tokens, completion: cached.usage.completion_tokens, total: cached.usage.total_tokens }
+            : undefined,
+        });
+
+        if (!req.stream) return cached;
+        return;
+      }
+    }
+
+    // ── 2. Try each available key in round-robin order ──────────────────────
     const usedKeyIds = new Set<string>();
     let attempts = 0;
     const maxAttempts = Math.max(provider.keys.filter(k => k.enabled).length, 1);
@@ -53,6 +94,9 @@ export class KeyRotationRouter {
 
       try {
         if (req.stream && onChunk) {
+          let ttft = 0;
+          let assembledText = '';
+
           const result = await adapter.stream(
             req,
             keyEntry.key,
@@ -60,8 +104,30 @@ export class KeyRotationRouter {
             provider.baseUrl,
             undefined,
             settings.defaultTimeoutMs ?? 60000,
-            onChunk
+            (chunk) => {
+              if (!ttft) {
+                ttft = Date.now() - startTime; // Time to First Token!
+              }
+              const d = chunk.choices?.[0]?.delta?.content;
+              if (d) assembledText += d;
+              onChunk(chunk);
+            }
           );
+
+          const totalLatency = Date.now() - startTime;
+          const trueLatency = ttft || totalLatency;
+
+          // Save to 0ms cache if complete
+          if (settings.enableCache !== false && assembledText) {
+            responseCache.set(providerId, req, {
+              id: uuidv4(),
+              object: 'chat.completion',
+              created: Math.floor(Date.now() / 1000),
+              model,
+              choices: [{ index: 0, message: { role: 'assistant', content: assembledText }, finish_reason: 'stop' }],
+              usage: result.usage,
+            });
+          }
 
           storage.reportSuccess(providerId, keyEntry.id);
           storage.logRequest({
@@ -72,7 +138,9 @@ export class KeyRotationRouter {
             model,
             status: 'success',
             statusCode: 200,
-            latencyMs: Date.now() - startTime,
+            latencyMs: trueLatency, // TTFT for streaming!
+            ttftMs: trueLatency,
+            cached: false,
             stream: true,
             keyIndex: index,
             switchedKeys,
@@ -91,6 +159,13 @@ export class KeyRotationRouter {
             settings.defaultTimeoutMs ?? 30000
           );
 
+          const latency = Date.now() - startTime;
+
+          // Save to 0ms cache
+          if (settings.enableCache !== false) {
+            responseCache.set(providerId, req, response);
+          }
+
           storage.reportSuccess(providerId, keyEntry.id);
           storage.logRequest({
             id: response.id || uuidv4(),
@@ -100,7 +175,9 @@ export class KeyRotationRouter {
             model,
             status: 'success',
             statusCode: 200,
-            latencyMs: Date.now() - startTime,
+            latencyMs: latency,
+            ttftMs: latency,
+            cached: false,
             stream: false,
             keyIndex: index,
             switchedKeys,
@@ -116,7 +193,7 @@ export class KeyRotationRouter {
         const isTimeout = err instanceof ProviderError && err.statusCode === 408;
 
         if (isRateLimit) {
-          // ✅ Core feature: auto-rotate to next key
+          // Auto-rotate to next key
           storage.reportRateLimit(providerId, keyEntry.id);
           console.log(`[Router] 🔄 Key ${index + 1} (${keyEntry.label || keyEntry.id}) rate limited → trying next key...`);
           continue;
@@ -124,7 +201,7 @@ export class KeyRotationRouter {
 
         // For server errors / timeouts, also try next key
         if (isServerErr || isTimeout) {
-          console.log(`[Router] ⚠️  Key ${index + 1} returned ${err.statusCode} → trying next key...`);
+          console.log(`[Router] ⚠️ Key ${index + 1} returned ${err.statusCode} → trying next key...`);
           continue;
         }
 

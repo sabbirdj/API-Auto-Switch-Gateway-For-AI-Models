@@ -50,6 +50,8 @@ export interface RequestAuditLog {
   status: 'success' | 'failed';
   statusCode: number;
   latencyMs: number;
+  ttftMs?: number;       // Time To First Token (real latency)
+  cached?: boolean;      // Served in 0ms from in-memory cache
   stream: boolean;
   keyIndex: number;      // which key index was ultimately used
   switchedKeys: boolean; // did we have to rotate keys?
@@ -63,7 +65,9 @@ export interface GatewaySettings {
   defaultProviderId: string; // which provider to use for /v1/chat/completions by default
   defaultModel: string;
   enableLogging: boolean;
-  cooldownSec: number; // how long (seconds) to cool a key after 429
+  enableCache: boolean;      // Instant 0ms response cache
+  cacheTtlSec: number;       // Cache TTL in seconds (default 600 = 10 min)
+  cooldownSec: number;       // how long (seconds) to cool a key after 429
   defaultTimeoutMs: number;
 }
 
@@ -82,6 +86,8 @@ function makeDefault(): AppConfig {
       defaultProviderId: 'groq',
       defaultModel: 'llama-3.3-70b-versatile',
       enableLogging: true,
+      enableCache: true,
+      cacheTtlSec: 600,
       cooldownSec: 60,
       defaultTimeoutMs: 30000,
     },
@@ -289,15 +295,17 @@ class StorageManager {
     const total = this.logs.length;
     const ok = this.logs.filter(l => l.status === 'success').length;
     const switched = this.logs.filter(l => l.switchedKeys).length;
+    const cachedCount = this.logs.filter(l => l.cached).length;
     const totalTokens = this.logs.reduce((s, l) => s + (l.tokens?.total ?? 0), 0);
     const avgLatency = total > 0
-      ? Math.round(this.logs.reduce((s, l) => s + l.latencyMs, 0) / total)
+      ? Math.round(this.logs.reduce((s, l) => s + (l.ttftMs ?? l.latencyMs), 0) / total)
       : 0;
     return {
       total,
       successful: ok,
       failed: total - ok,
       autoSwitched: switched,
+      cachedCount,
       successRate: total > 0 ? `${((ok / total) * 100).toFixed(1)}%` : '100%',
       avgLatencyMs: avgLatency,
       totalTokens,
