@@ -567,14 +567,16 @@ print(msg.content[0].text)</pre>
               ? k.key.slice(0, 6) + '•••••••••' + k.key.slice(-4)
               : '•'.repeat(k.key.length);
             return `
-              <div class="key-row flex items-center gap-3 px-4 py-2.5 rounded-lg transition group">
-                <span class="w-5 h-5 rounded-full ${statusDot} flex-shrink-0 border border-white/10"></span>
+              <div class="key-row flex items-center gap-3 px-5 py-3.5 transition group">
+                <span class="w-2 h-2 rounded-full ${statusDot} flex-shrink-0"></span>
                 <span class="font-mono text-xs text-zinc-300 flex-1 truncate">${maskedKey}</span>
-                <span class="text-[10px] font-medium ${k.status === 'active' ? 'text-emerald-400' : k.status === 'cooldown' ? 'text-amber-400' : 'text-zinc-500'}">${statusLabel}</span>
-                <span class="text-[10px] text-zinc-500">Used: ${k.usageCount ?? 0}</span>
-                <span class="text-[10px] text-zinc-500">Fails: ${k.failureCount ?? 0}</span>
-                <button onclick="removeKey('${prov.id}','${k.id}')" class="text-zinc-600 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition text-xs ml-1" title="Remove key">
-                  <i class="fa-solid fa-trash-can"></i>
+                <span class="hidden sm:inline-flex items-center rounded-md border ${k.status === 'active' ? 'border-emerald-500/20 bg-emerald-500/[.07] text-emerald-400' : k.status === 'cooldown' ? 'border-amber-500/20 bg-amber-500/[.07] text-amber-400' : 'border-zinc-700 text-zinc-500'} px-2 py-1 text-[10px] font-medium">${statusLabel}</span>
+                <div class="hidden md:flex items-center gap-4 text-[11px] text-zinc-500 tabular-nums">
+                  <span>${k.usageCount ?? 0} requests</span>
+                  <span>${k.failureCount ?? 0} failures</span>
+                </div>
+                <button onclick="removeKey('${prov.id}','${k.id}')" class="w-8 h-8 rounded-md text-zinc-600 hover:text-rose-400 hover:bg-rose-500/10 transition text-xs ml-1" title="Remove key" aria-label="Remove API key">
+                  <i class="fa-regular fa-trash-can"></i>
                 </button>
               </div>`;
           }).join('');
@@ -584,8 +586,13 @@ print(msg.content[0].text)</pre>
           <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 px-5 py-4 border-b border-zinc-800/70 bg-zinc-800/10">
             <div class="flex items-center gap-3 flex-wrap">
               <div class="w-9 h-9 rounded-lg bg-violet-500/10 text-violet-400 flex items-center justify-center text-sm"><i class="fa-solid fa-server"></i></div>
-              <div class="text-sm font-semibold text-white">${prov.name}</div>
-              <code class="text-[10px] text-zinc-500 font-mono bg-zinc-800/70 border border-zinc-700/50 px-1.5 py-0.5 rounded">${prov.type}</code>
+              <div>
+                <div class="flex items-center gap-2.5">
+                  <div class="text-sm font-semibold text-white">${prov.name}</div>
+                  <code class="text-[10px] text-zinc-500 font-mono bg-zinc-800/70 border border-zinc-700/50 px-1.5 py-0.5 rounded">${prov.type}</code>
+                </div>
+                <div class="text-[11px] text-zinc-600 mt-1">API provider</div>
+              </div>
               <span class="text-[10px] border px-1.5 py-0.5 rounded-full font-medium ${badgeClass}">
                 ${prov.activeKeys}/${prov.totalKeys} keys active
               </span>
@@ -599,22 +606,24 @@ print(msg.content[0].text)</pre>
                 class="text-xs bg-violet-600 hover:bg-violet-500 text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition font-medium">
                 <i class="fa-solid fa-plus"></i> Add Keys
               </button>
-              <label class="relative inline-flex items-center cursor-pointer">
+              <label class="flex items-center gap-2 cursor-pointer border-l border-zinc-800 pl-3 ml-1" title="Enable or disable provider">
+                <span class="text-[11px] text-zinc-500">${prov.enabled ? 'Enabled' : 'Disabled'}</span>
                 <input type="checkbox" ${prov.enabled ? 'checked' : ''} onchange="toggleProvider('${prov.id}', this.checked)" class="sr-only peer">
-                <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:after:tranzinc-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-violet-600"></div>
+                <div class="relative w-8 h-[18px] bg-zinc-700 rounded-full peer peer-checked:after:translate-x-[14px] after:content-[''] after:absolute after:top-[3px] after:left-[3px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-transform peer-checked:bg-violet-600"></div>
               </label>
-              <button onclick="editProvider('${prov.id}')" title="Edit provider details" class="text-zinc-400 hover:text-violet-400 px-1.5 py-1 text-xs transition">
+              <button onclick="editProvider('${prov.id}')" title="Edit provider details" aria-label="Edit provider" class="w-8 h-8 rounded-md text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 text-xs transition">
                 <i class="fa-solid fa-pen-to-square"></i>
               </button>
-              <button onclick="deleteProvider('${prov.id}', '${prov.name}')" title="Delete provider" class="text-zinc-500 hover:text-rose-400 px-1.5 py-1 text-xs transition">
-                <i class="fa-solid fa-trash"></i>
+              <button onclick="deleteProvider('${prov.id}', '${prov.name}')" title="Delete provider" aria-label="Delete provider" class="w-8 h-8 rounded-md text-zinc-600 hover:text-rose-400 hover:bg-rose-500/10 text-xs transition">
+                <i class="fa-regular fa-trash-can"></i>
               </button>
             </div>
           </div>
-          <div class="p-2 space-y-0.5">${keyRows}</div>
-          <div class="px-4 py-2 border-t border-zinc-800/60 flex items-center gap-4 text-xs text-zinc-500">
-            <code class="text-zinc-600 truncate max-w-sm">${prov.baseUrl || '(default endpoint)'}</code>
-            ${prov.keys.length > 0 ? `<button onclick="clearKeys('${prov.id}')" class="text-rose-700 hover:text-rose-500 ml-auto">Clear all keys</button>` : ''}
+          <div>${keyRows}</div>
+          <div class="px-5 py-3 border-t border-zinc-800/60 flex items-center gap-3 text-[11px] text-zinc-500 bg-black/10">
+            <i class="fa-solid fa-link text-zinc-700"></i>
+            <code class="text-zinc-500 truncate">${prov.baseUrl || '(default endpoint)'}</code>
+            ${prov.keys.length > 0 ? `<button onclick="clearKeys('${prov.id}')" class="text-zinc-600 hover:text-rose-400 ml-auto whitespace-nowrap transition">Clear all keys</button>` : ''}
           </div>
         </div>`;
     }).join('');
