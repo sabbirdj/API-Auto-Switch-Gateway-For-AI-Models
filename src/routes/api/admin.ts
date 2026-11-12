@@ -1,153 +1,222 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { storage } from '../../db/storage.js';
+import { storage, ProviderConfig, ApiKeyEntry } from '../../db/storage.js';
 import { adapterRegistry } from '../../adapters/index.js';
-import { routerEngine } from '../../engine/router.js';
-import { ProviderConfig, RouteRule } from '../../types/provider.js';
+import { router as keyRouter } from '../../engine/router.js';
 
 export const adminRouter = Router();
 
-// Get full system state & metrics
-adminRouter.get('/config', (req: Request, res: Response) => {
-  const config = storage.getConfig();
+// ── Dashboard data ────────────────────────────────────────────────────────────
+adminRouter.get('/dashboard', (req: Request, res: Response) => {
+  const providers = storage.getProviders();
+  const settings = storage.getSettings();
   const stats = storage.getStats();
-  res.json({
-    settings: config.settings,
-    providers: config.providers,
-    routes: config.routes,
-    stats,
-  });
+  const logs = storage.getLogs(50);
+
+  // Enrich providers: show key status (active / cooldown)
+  const now = Date.now();
+  const enriched = providers.map(p => ({
+    ...p,
+    keys: p.keys.map((k, i) => ({
+      ...k,
+      index: i,
+      status: !k.enabled ? 'disabled' : k.cooldownUntil > now ? 'cooldown' : 'active',
+      cooldownRemainsMs: Math.max(0, k.cooldownUntil - now),
+    })),
+    activeKeys: p.keys.filter(k => k.enabled && k.cooldownUntil <= now).length,
+    totalKeys: p.keys.length,
+  }));
+
+  res.json({ providers: enriched, settings, stats, logs });
 });
 
-// Update settings
+// ── Settings ──────────────────────────────────────────────────────────────────
 adminRouter.post('/settings', (req: Request, res: Response) => {
-  const updates = req.body;
-  const updated = storage.updateSettings(updates);
-  res.json({ success: true, settings: updated });
+  storage.updateSettings(req.body);
+  res.json({ ok: true, settings: storage.getSettings() });
 });
 
-// Save/Update provider
-adminRouter.post('/providers', (req: Request, res: Response) => {
-  const providerData = req.body as Partial<ProviderConfig>;
-  if (!providerData.name || !providerData.type) {
-    return res.status(400).json({ error: 'Name and type are required' });
+// ── Add keys to a provider (paste multiple at once) ───────────────────────────
+adminRouter.post('/providers/:id/keys', (req: Request, res: Response) => {
+  const id = req.params.id as string;
+  const { keys } = req.body as { keys: string[] }; // array of raw key strings
+
+  const provider = storage.getProvider(id);
+  if (!provider) return res.status(404).json({ error: 'Provider not found' });
+
+  if (!Array.isArray(keys) || keys.length === 0) {
+    return res.status(400).json({ error: '"keys" must be a non-empty array of strings' });
   }
 
-  const existing = providerData.id ? storage.getProviderById(providerData.id) : null;
-  const provider: ProviderConfig = {
-    id: providerData.id || `provider-${uuidv4().slice(0, 8)}`,
-    name: providerData.name,
-    type: providerData.type,
-    baseUrl: providerData.baseUrl || '',
-    apiKeys: Array.isArray(providerData.apiKeys) ? providerData.apiKeys.filter((k) => k.trim()) : [],
-    enabled: providerData.enabled ?? true,
-    models: Array.isArray(providerData.models) ? providerData.models.filter((m) => m.trim()) : [],
-    defaultModel: providerData.defaultModel || providerData.models?.[0] || '',
-    headers: providerData.headers || {},
+  const existing = new Set(provider.keys.map(k => k.key));
+  let added = 0;
+  for (const rawKey of keys) {
+    const k = rawKey.trim();
+    if (!k || existing.has(k)) continue;
+    provider.keys.push({
+      id: uuidv4(),
+      key: k,
+      label: `Key ${provider.keys.length + 1}`,
+      enabled: true,
+      usageCount: 0,
+      failureCount: 0,
+      cooldownUntil: 0,
+    });
+    added++;
+  }
+
+  storage.saveProvider(provider);
+  res.json({ ok: true, added, total: provider.keys.length });
+});
+
+// ── Remove a single key ───────────────────────────────────────────────────────
+adminRouter.delete('/providers/:id/keys/:keyId', (req: Request, res: Response) => {
+  const id = req.params.id as string;
+  const keyId = req.params.keyId as string;
+  const provider = storage.getProvider(id);
+  if (!provider) return res.status(404).json({ error: 'Provider not found' });
+
+  provider.keys = provider.keys.filter(k => k.id !== keyId);
+  storage.saveProvider(provider);
+  res.json({ ok: true });
+});
+
+// ── Clear all keys for a provider ─────────────────────────────────────────────
+adminRouter.delete('/providers/:id/keys', (req: Request, res: Response) => {
+  const id = req.params.id as string;
+  const provider = storage.getProvider(id);
+  if (!provider) return res.status(404).json({ error: 'Provider not found' });
+
+  provider.keys = [];
+  storage.saveProvider(provider);
+  res.json({ ok: true });
+});
+
+// ── Reset cooldown on all keys for a provider ─────────────────────────────────
+adminRouter.post('/providers/:id/keys/reset-cooldown', (req: Request, res: Response) => {
+  const id = req.params.id as string;
+  const provider = storage.getProvider(id);
+  if (!provider) return res.status(404).json({ error: 'Provider not found' });
+
+  provider.keys.forEach(k => { k.cooldownUntil = 0; });
+  storage.saveProvider(provider);
+  res.json({ ok: true });
+});
+
+// ── Toggle provider enabled ───────────────────────────────────────────────────
+adminRouter.patch('/providers/:id', (req: Request, res: Response) => {
+  const id = req.params.id as string;
+  const provider = storage.getProvider(id);
+  if (!provider) return res.status(404).json({ error: 'Provider not found' });
+
+  if (req.body.enabled !== undefined) provider.enabled = req.body.enabled;
+  if (req.body.defaultModel) provider.defaultModel = req.body.defaultModel;
+  if (req.body.baseUrl) provider.baseUrl = req.body.baseUrl;
+  if (Array.isArray(req.body.models)) provider.models = req.body.models;
+  storage.saveProvider(provider);
+  res.json({ ok: true, provider });
+});
+
+// ── Add or Update a provider ──────────────────────────────────────────
+adminRouter.post('/providers', (req: Request, res: Response) => {
+  const { id, name, type, baseUrl, models, defaultModel, keys } = req.body;
+  if (!name || !type) return res.status(400).json({ error: 'name and type are required' });
+
+  const provId = (id || name.toLowerCase().replace(/[^a-z0-9_-]/g, '-')).trim();
+  const existing = storage.getProvider(provId);
+
+  let keyEntries: ApiKeyEntry[] = existing ? [...existing.keys] : [];
+  if (Array.isArray(keys)) {
+    const existingKeySet = new Set(keyEntries.map(k => k.key));
+    for (const rawKey of keys) {
+      const k = String(rawKey).trim();
+      if (!k || existingKeySet.has(k)) continue;
+      keyEntries.push({
+        id: uuidv4(),
+        key: k,
+        label: `Key ${keyEntries.length + 1}`,
+        enabled: true,
+        usageCount: 0,
+        failureCount: 0,
+        cooldownUntil: 0,
+      });
+      existingKeySet.add(k);
+    }
+  }
+
+  const modelList = Array.isArray(models)
+    ? models.map((m: any) => String(m).trim()).filter(Boolean)
+    : typeof models === 'string'
+    ? models.split(',').map((m: string) => m.trim()).filter(Boolean)
+    : [];
+
+  const p: ProviderConfig = {
+    id: provId,
+    name: name.trim(),
+    type,
+    baseUrl: (baseUrl || '').trim(),
+    keys: keyEntries,
+    models: modelList.length > 0 ? modelList : ['default'],
+    defaultModel: (defaultModel || modelList[0] || 'default').trim(),
+    enabled: existing ? existing.enabled : true,
     createdAt: existing ? existing.createdAt : Date.now(),
   };
 
-  storage.saveProvider(provider);
-  res.json({ success: true, provider });
+  storage.saveProvider(p);
+  res.json({ ok: true, provider: p });
 });
 
-// Delete provider
+// ── Delete a provider ─────────────────────────────────────────────────────────
 adminRouter.delete('/providers/:id', (req: Request, res: Response) => {
-  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = req.params.id as string;
   storage.deleteProvider(id);
-  res.json({ success: true });
+  res.json({ ok: true });
 });
 
-// Test provider connection
+// ── Test a key ────────────────────────────────────────────────────────────────
 adminRouter.post('/providers/:id/test', async (req: Request, res: Response) => {
-  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const provider = storage.getProviderById(id);
-  if (!provider) {
-    return res.status(404).json({ error: 'Provider not found' });
-  }
+  const id = req.params.id as string;
+  const provider = storage.getProvider(id);
+  if (!provider) return res.status(404).json({ error: 'Provider not found' });
 
-  const { apiKey, model } = req.body;
-  const testKey = apiKey || provider.apiKeys[0];
+  const { key, model } = req.body;
+  const testKey = key || provider.keys[0]?.key;
   const testModel = model || provider.defaultModel || provider.models[0];
 
-  if (!testKey) {
-    return res.status(400).json({ ok: false, message: 'No API key provided to test.' });
-  }
+  if (!testKey) return res.json({ ok: false, message: 'No API key to test.' });
 
   const adapter = adapterRegistry.getAdapter(provider.type);
   const result = await adapter.testConnection(testKey, testModel, provider.baseUrl);
   res.json(result);
 });
 
-// Save/Update route
-adminRouter.post('/routes', (req: Request, res: Response) => {
-  const routeData = req.body as Partial<RouteRule>;
-  if (!routeData.alias || !routeData.strategy || !routeData.targets) {
-    return res.status(400).json({ error: 'Alias, strategy, and targets are required' });
-  }
-
-  const existing = routeData.id ? storage.getRouteById(routeData.id) : null;
-  const route: RouteRule = {
-    id: routeData.id || `route-${uuidv4().slice(0, 8)}`,
-    alias: routeData.alias.trim().toLowerCase(),
-    description: routeData.description || '',
-    strategy: routeData.strategy,
-    targets: routeData.targets,
-    enabled: routeData.enabled ?? true,
-    createdAt: existing ? existing.createdAt : Date.now(),
-  };
-
-  storage.saveRoute(route);
-  res.json({ success: true, route });
-});
-
-// Delete route
-adminRouter.delete('/routes/:id', (req: Request, res: Response) => {
-  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  storage.deleteRoute(id);
-  res.json({ success: true });
-});
-
-// Get logs
+// ── Logs ──────────────────────────────────────────────────────────────────────
 adminRouter.get('/logs', (req: Request, res: Response) => {
-  const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 100;
-  const logs = storage.getLogs(limit);
-  res.json({ logs });
+  const limit = parseInt((req.query.limit as string) || '100', 10);
+  res.json({ logs: storage.getLogs(limit) });
 });
 
-// Clear logs
 adminRouter.delete('/logs', (req: Request, res: Response) => {
   storage.clearLogs();
-  res.json({ success: true });
+  res.json({ ok: true });
 });
 
-// Interactive Playground Test Route
-adminRouter.post('/test-route', async (req: Request, res: Response) => {
-  const { model, prompt, stream } = req.body;
-  if (!prompt) {
-    return res.status(400).json({ error: 'Prompt is required' });
-  }
+// ── Quick playground test ─────────────────────────────────────────────────────
+adminRouter.post('/test', async (req: Request, res: Response) => {
+  const { prompt, model, providerId } = req.body;
+  if (!prompt) return res.status(400).json({ error: 'prompt required' });
 
-  const chatReq = {
-    model: model || 'master',
-    messages: [{ role: 'user' as const, content: prompt }],
-    stream: !!stream,
-    max_tokens: 1000,
-  };
+  const pid = providerId || storage.getSettings().defaultProviderId;
+  const provider = storage.getProvider(pid);
 
   try {
-    const startTime = Date.now();
-    const result = await routerEngine.executeChat(chatReq);
-    const latency = Date.now() - startTime;
-    res.json({
-      success: true,
-      result,
-      latencyMs: latency,
-    });
+    const start = Date.now();
+    const result = await keyRouter.execute(
+      { model: model || provider?.defaultModel || 'default', messages: [{ role: 'user', content: prompt }] },
+      pid
+    );
+    res.json({ ok: true, result, latencyMs: Date.now() - start });
   } catch (err: any) {
-    res.status(502).json({
-      success: false,
-      error: err.message,
-    });
+    res.status(502).json({ ok: false, error: err.message });
   }
 });

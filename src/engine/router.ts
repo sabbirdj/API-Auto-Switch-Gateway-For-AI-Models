@@ -4,257 +4,169 @@ import {
   ChatCompletionResponse,
   ChatCompletionChunk,
 } from '../types/openai.js';
-import { RouteTarget, RouteRule, ProviderConfig, RequestAuditLog } from '../types/provider.js';
-import { storage } from '../db/storage.js';
+import { storage, ProviderConfig } from '../db/storage.js';
 import { adapterRegistry, ProviderError } from '../adapters/index.js';
-import { keyPool } from './keyPool.js';
 
-export interface RouteResolution {
-  routeRule?: RouteRule;
-  targets: RouteTarget[];
-  alias: string;
-}
-
-export class RouterEngine {
-  public resolveRoute(modelRequested: string): RouteResolution {
-    const cleanModel = (modelRequested || 'master').trim();
-
-    // 1. Try finding explicit route alias
-    const route = storage.getRouteByAlias(cleanModel);
-    if (route && route.targets.length > 0) {
-      let targets = [...route.targets];
-      if (route.strategy === 'load_balance' && targets.length > 1) {
-        // Weighted random or shuffle based on weight
-        targets = this.pickWeightedOrder(targets);
-      }
-      return { routeRule: route, targets, alias: route.alias };
-    }
-
-    // 2. Check if model belongs directly to an enabled provider
-    const providers = storage.getProviders().filter((p) => p.enabled && p.apiKeys.length > 0);
-    const directProvider = providers.find(
-      (p) =>
-        p.models.includes(cleanModel) ||
-        p.defaultModel === cleanModel ||
-        cleanModel.toLowerCase().includes(p.type)
-    );
-
-    if (directProvider) {
-      return {
-        alias: cleanModel,
-        targets: [
-          {
-            providerId: directProvider.id,
-            model: cleanModel,
-            timeoutMs: 30000,
-          },
-        ],
-      };
-    }
-
-    // 3. Fallback to default "master" route or first enabled route
-    const defaultRoute = storage.getRouteByAlias('master') || storage.getRoutes().find((r) => r.enabled);
-    if (defaultRoute && defaultRoute.targets.length > 0) {
-      return {
-        routeRule: defaultRoute,
-        targets: [...defaultRoute.targets],
-        alias: defaultRoute.alias,
-      };
-    }
-
-    // 4. Default to any enabled provider with its default model
-    if (providers.length > 0) {
-      const p = providers[0];
-      return {
-        alias: cleanModel,
-        targets: [
-          {
-            providerId: p.id,
-            model: p.defaultModel || p.models[0] || 'default',
-            timeoutMs: 30000,
-          },
-        ],
-      };
-    }
-
-    throw new Error('No AI providers configured or enabled with valid API keys.');
-  }
-
-  private pickWeightedOrder(targets: RouteTarget[]): RouteTarget[] {
-    const weightedTargets = targets.map((t) => ({
-      target: t,
-      weight: t.weight && t.weight > 0 ? t.weight : 50,
-    }));
-
-    const totalWeight = weightedTargets.reduce((sum, item) => sum + item.weight, 0);
-    const rand = Math.random() * totalWeight;
-
-    let cumulative = 0;
-    let selectedIdx = 0;
-    for (let i = 0; i < weightedTargets.length; i++) {
-      cumulative += weightedTargets[i].weight;
-      if (rand <= cumulative) {
-        selectedIdx = i;
-        break;
-      }
-    }
-
-    // Place selected target first, followed by others in their original order for fallback
-    const selected = targets[selectedIdx];
-    const rest = targets.filter((_, idx) => idx !== selectedIdx);
-    return [selected, ...rest];
-  }
-
-  public async executeChat(
+export class KeyRotationRouter {
+  /**
+   * Execute a chat request against a specific provider,
+   * rotating through its key pool if one key hits a rate limit.
+   */
+  async execute(
     req: ChatCompletionRequest,
-    options?: {
-      onChunk?: (chunk: ChatCompletionChunk) => void;
-      onStreamStart?: () => void;
-    }
+    providerId: string,
+    onChunk?: (chunk: ChatCompletionChunk) => void
   ): Promise<ChatCompletionResponse | void> {
-    const startTime = Date.now();
-    const resolution = this.resolveRoute(req.model);
-    const { targets, alias } = resolution;
+    const provider = storage.getProvider(providerId);
+    if (!provider) throw new Error(`Provider "${providerId}" not found.`);
+    if (!provider.enabled) throw new Error(`Provider "${provider.name}" is disabled.`);
 
-    const fallbackChain: string[] = [];
-    let lastError: any = null;
-    let retries = 0;
+    const adapter = adapterRegistry.getAdapter(provider.type);
+    const settings = storage.getSettings();
+    const model = req.model || provider.defaultModel;
 
-    for (let i = 0; i < targets.length; i++) {
-      const target = targets[i];
-      const provider = storage.getProviderById(target.providerId);
+    // Try each available key in round-robin order
+    const usedKeyIds = new Set<string>();
+    let attempts = 0;
+    const maxAttempts = Math.max(provider.keys.filter(k => k.enabled).length, 1);
+    let switchedKeys = false;
+    let startTime = Date.now();
 
-      if (!provider || !provider.enabled) {
-        fallbackChain.push(`Target [${target.providerId} / ${target.model}]: Provider disabled or not found`);
-        continue;
+    while (attempts < maxAttempts) {
+      const picked = storage.pickKey(providerId);
+
+      if (!picked) {
+        throw new Error(
+          `All ${maxAttempts} key(s) for "${provider.name}" are on cooldown due to rate limits. ` +
+          `They will reset in ${settings.cooldownSec}s.`
+        );
       }
 
-      const apiKey = keyPool.getKey(provider.id, provider.apiKeys);
-      if (!apiKey) {
-        fallbackChain.push(`Target [${provider.name} / ${target.model}]: No API key available`);
-        continue;
-      }
+      const { keyEntry, index } = picked;
 
-      const adapter = adapterRegistry.getAdapter(provider.type);
-      const targetTimeout = target.timeoutMs || storage.getSettings().defaultTimeoutMs || 30000;
+      if (usedKeyIds.has(keyEntry.id)) break; // looped all keys
+      usedKeyIds.add(keyEntry.id);
+
+      if (attempts > 0) switchedKeys = true;
+      attempts++;
+      startTime = Date.now();
 
       try {
-        console.log(
-          `[Router] Route "${alias}" -> Attempting target ${i + 1}/${targets.length}: ${provider.name} (${target.model})`
-        );
-
-        if (req.stream) {
-          let hasStartedStreaming = false;
-
-          const streamResult = await adapter.stream(
+        if (req.stream && onChunk) {
+          const result = await adapter.stream(
             req,
-            apiKey,
-            target.model,
+            keyEntry.key,
+            model,
             provider.baseUrl,
-            provider.headers,
-            targetTimeout,
-            (chunk) => {
-              if (!hasStartedStreaming) {
-                hasStartedStreaming = true;
-                if (options?.onStreamStart) options.onStreamStart();
-              }
-              if (options?.onChunk) {
-                options.onChunk(chunk);
-              }
-            }
+            undefined,
+            settings.defaultTimeoutMs ?? 60000,
+            onChunk
           );
 
-          keyPool.reportSuccess(provider.id, apiKey);
-          const latencyMs = Date.now() - startTime;
-
-          // Record audit log
+          storage.reportSuccess(providerId, keyEntry.id);
           storage.logRequest({
             id: uuidv4(),
             timestamp: Date.now(),
-            aliasRequested: req.model,
-            providerIdUsed: provider.id,
-            providerNameUsed: provider.name,
-            modelUsed: target.model,
+            provider: provider.name,
+            keyLabel: keyEntry.label || `Key ${index + 1}`,
+            model,
             status: 'success',
             statusCode: 200,
-            latencyMs,
+            latencyMs: Date.now() - startTime,
             stream: true,
-            retries,
-            fallbackChain: fallbackChain.length > 0 ? fallbackChain : undefined,
-            tokens: streamResult.usage,
+            keyIndex: index,
+            switchedKeys,
+            tokens: result.usage
+              ? { prompt: result.usage.prompt_tokens, completion: result.usage.completion_tokens, total: result.usage.total_tokens }
+              : undefined,
           });
-
           return;
         } else {
           const response = await adapter.complete(
             req,
-            apiKey,
-            target.model,
+            keyEntry.key,
+            model,
             provider.baseUrl,
-            provider.headers,
-            targetTimeout
+            undefined,
+            settings.defaultTimeoutMs ?? 30000
           );
 
-          keyPool.reportSuccess(provider.id, apiKey);
-          const latencyMs = Date.now() - startTime;
-
-          // Record audit log
+          storage.reportSuccess(providerId, keyEntry.id);
           storage.logRequest({
             id: response.id || uuidv4(),
             timestamp: Date.now(),
-            aliasRequested: req.model,
-            providerIdUsed: provider.id,
-            providerNameUsed: provider.name,
-            modelUsed: target.model,
+            provider: provider.name,
+            keyLabel: keyEntry.label || `Key ${index + 1}`,
+            model,
             status: 'success',
             statusCode: 200,
-            latencyMs,
+            latencyMs: Date.now() - startTime,
             stream: false,
-            retries,
-            fallbackChain: fallbackChain.length > 0 ? fallbackChain : undefined,
-            tokens: response.usage,
+            keyIndex: index,
+            switchedKeys,
+            tokens: response.usage
+              ? { prompt: response.usage.prompt_tokens, completion: response.usage.completion_tokens, total: response.usage.total_tokens }
+              : undefined,
           });
-
           return response;
         }
       } catch (err: any) {
-        lastError = err;
-        retries++;
+        const isRateLimit = err instanceof ProviderError && (err.statusCode === 429 || err.statusCode === 429);
+        const isServerErr = err instanceof ProviderError && err.statusCode >= 500;
+        const isTimeout = err instanceof ProviderError && err.statusCode === 408;
 
-        if (err instanceof ProviderError && err.isRateLimit) {
-          keyPool.reportRateLimit(provider.id, apiKey, 60);
+        if (isRateLimit) {
+          // ✅ Core feature: auto-rotate to next key
+          storage.reportRateLimit(providerId, keyEntry.id);
+          console.log(`[Router] 🔄 Key ${index + 1} (${keyEntry.label || keyEntry.id}) rate limited → trying next key...`);
+          continue;
         }
 
-        const reason = err.message || 'Unknown error';
-        const failureNote = `Target ${provider.name} (${target.model}) failed: ${reason}`;
-        console.warn(`[Router Switch] ${failureNote}. Switching to next fallback target...`);
-        fallbackChain.push(failureNote);
+        // For server errors / timeouts, also try next key
+        if (isServerErr || isTimeout) {
+          console.log(`[Router] ⚠️  Key ${index + 1} returned ${err.statusCode} → trying next key...`);
+          continue;
+        }
+
+        // Auth error or bad request → don't retry
+        storage.logRequest({
+          id: uuidv4(),
+          timestamp: Date.now(),
+          provider: provider.name,
+          keyLabel: keyEntry.label || `Key ${index + 1}`,
+          model,
+          status: 'failed',
+          statusCode: err instanceof ProviderError ? err.statusCode : 500,
+          latencyMs: Date.now() - startTime,
+          stream: !!req.stream,
+          keyIndex: index,
+          switchedKeys,
+          error: err.message,
+        });
+        throw err;
       }
     }
 
-    // All targets failed
-    const totalLatency = Date.now() - startTime;
+    // All keys exhausted
+    const latencyMs = Date.now() - startTime;
     storage.logRequest({
       id: uuidv4(),
       timestamp: Date.now(),
-      aliasRequested: req.model,
-      providerIdUsed: 'none',
-      providerNameUsed: 'Exhausted',
-      modelUsed: req.model,
+      provider: provider.name,
+      keyLabel: 'all',
+      model,
       status: 'failed',
-      statusCode: lastError?.statusCode || 502,
-      latencyMs: totalLatency,
+      statusCode: 429,
+      latencyMs,
       stream: !!req.stream,
-      retries,
-      fallbackChain,
-      error: lastError?.message || 'All fallback targets exhausted',
+      keyIndex: -1,
+      switchedKeys,
+      error: 'All keys exhausted due to rate limits',
     });
-
     throw new Error(
-      `Master Router: All targets exhausted for model/route "${req.model}".\nFallback trace:\n - ` +
-        fallbackChain.join('\n - ')
+      `All ${maxAttempts} key(s) for "${provider.name}" are rate limited. Add more keys or wait ${settings.cooldownSec}s.`
     );
   }
 }
 
-export const routerEngine = new RouterEngine();
+export const router = new KeyRotationRouter();
