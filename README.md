@@ -104,9 +104,11 @@ Open your browser and navigate to:
 ## 💻 Client Configuration Guides
 
 ### 1. OpenCode (`opencode.json`)
-In your project's root folder (or globally at `~/.config/opencode/opencode.json`), configure API Switch as a custom OpenAI-compatible provider:
+In your project's root folder (or globally at `~/.config/opencode/opencode.json`), configure API Switch as a custom OpenAI-compatible provider.
 
 > **⚠️ Important (OpenCode V2):** Use the `"package"` field — **not** `"npm"`. The legacy `"npm": "@ai-sdk/openai"` field is rejected by OpenCode V2 and causes `SessionRunnerModel.UnsupportedPackageError` at runtime.
+
+The example below matches a real working setup: a **Coarena Ai** provider serving **GLM 5.3 Flash** and **DeepSeek V4.1** through the gateway:
 
 ```json
 {
@@ -122,12 +124,12 @@ In your project's root folder (or globally at `~/.config/opencode/opencode.json`
         "apiKey": "sk_564dd7437hn3v7cx738m83v"
       },
       "models": {
-        "llama-3.3-70b-versatile": {
-          "name": "Llama 3.3 70B (Auto-Rotate)",
-          "limit": { "context": 128000, "output": 32000 }
+        "glm-5-3-flash": {
+          "name": "GLM 5.3 Flash",
+          "limit": { "context": 1000000, "output": 64000 }
         },
-        "gemini-2.0-flash": {
-          "name": "Gemini 2.0 Flash (Auto-Rotate)",
+        "deepseek-v4-1-flash-1017": {
+          "name": "DeepSeek V4.1",
           "limit": { "context": 1000000, "output": 64000 }
         }
       }
@@ -136,7 +138,7 @@ In your project's root folder (or globally at `~/.config/opencode/opencode.json`
 }
 ```
 
-> **Tip:** Model keys in the `models` map must match the model IDs your gateway exposes (check `GET /v1/models`). Add any model your active provider serves — e.g. `glm-5-3-flash`, `deepseek-v4-1-flash-1017`, `gpt-4o-mini`. Use `limit` to declare each model's real context/output window. To make a model the default, set the top-level `"model"` key to `api-switch/<model-id>`.
+> **Tip:** Model keys in the `models` map must match the model IDs your gateway exposes — check `GET http://localhost:3000/v1/models` or the dashboard at `http://localhost:3000`. Add any model your active provider serves (e.g. `llama-3.3-70b-versatile`, `gemini-2.0-flash`, `glm-5-3-flash`, `deepseek-v4-1-flash-1017`). Use `limit` to declare each model's real context/output window. To change the default model, edit the top-level `"model"` key (`api-switch/<model-id>`).
 
 Or pass via environment variables in terminal:
 ```bash
@@ -216,7 +218,7 @@ client = anthropic.Anthropic(
 message = client.messages.create(
     # Use any model ID the gateway exposes (GET /v1/models).
     # Requests are translated and routed to your active provider.
-    model="claude-3-5-sonnet-20241022",  # or e.g. "glm-5-3-flash", "llama-3.3-70b-versatile"
+    model="glm-5-3-flash",  # or e.g. "deepseek-v4-1-flash-1017", "claude-3-5-sonnet-20241022"
     max_tokens=1024,
     messages=[{"role": "user", "content": "Hello via Anthropic protocol!"}]
 )

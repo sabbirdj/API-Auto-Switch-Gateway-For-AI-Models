@@ -207,7 +207,7 @@ client = OpenAI(
 
 # Keys auto-rotate on 429 — no changes needed
 response = client.chat.completions.create(
-    model="llama-3.3-70b-versatile",
+    model="glm-5-3-flash",  # or "deepseek-v4-1-flash-1017" — see /v1/models
     messages=[{"role": "user", "content": "Hello!"}],
     stream=True
 )
@@ -229,7 +229,7 @@ const client = new OpenAI({
 });
 
 const res = await client.chat.completions.create({
-  model: 'llama-3.3-70b-versatile',
+  model: 'glm-5-3-flash',  // or 'deepseek-v4-1-flash-1017' — see /v1/models
   messages: [{ role: 'user', content: 'Hello!' }],
 });
 console.log(res.choices[0].message.content);</pre>
@@ -244,7 +244,7 @@ console.log(res.choices[0].message.content);</pre>
   -H "Authorization: Bearer sk-switch-master-key" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "llama-3.3-70b-versatile",
+    "model": "glm-5-3-flash",
     "messages": [{"role":"user","content":"Hello!"}]
   }'</pre>
       </div>
@@ -262,7 +262,7 @@ client = anthropic.Anthropic(
     api_key="sk-switch-master-key"
 )
 msg = client.messages.create(
-    model="claude-3-5-sonnet-20241022",
+    model="glm-5-3-flash",  # or "deepseek-v4-1-flash-1017" — see /v1/models
     max_tokens=1024,
     messages=[{"role":"user","content":"Hello!"}]
 )

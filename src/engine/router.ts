@@ -188,7 +188,7 @@ export class KeyRotationRouter {
           return response;
         }
       } catch (err: any) {
-        const isRateLimit = err instanceof ProviderError && (err.statusCode === 429 || err.statusCode === 429);
+        const isRateLimit = err instanceof ProviderError && err.statusCode === 429;
         const isServerErr = err instanceof ProviderError && err.statusCode >= 500;
         const isTimeout = err instanceof ProviderError && err.statusCode === 408;
 
