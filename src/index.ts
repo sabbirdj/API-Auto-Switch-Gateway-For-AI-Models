@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import { storage } from './db/storage.js';
 import { handleChatCompletion } from './routes/v1/chat.js';
 import { handleListModels } from './routes/v1/models.js';
+import { handleAnthropicMessages } from './routes/v1/anthropicMessages.js';
 import { adminRouter } from './routes/api/admin.js';
 
 dotenv.config();
@@ -28,6 +29,10 @@ app.use(express.static(publicDir));
 // Master OpenAI-Compatible Endpoints
 app.post('/v1/chat/completions', handleChatCompletion);
 app.get('/v1/models', handleListModels);
+
+// Master Anthropic-Compatible Endpoints (Claude Code, Anthropic SDK, Cline, Roo Code)
+app.post('/v1/messages', handleAnthropicMessages);
+app.post('/messages', handleAnthropicMessages);
 
 // Internal Admin Control Plane
 app.use('/api', adminRouter);
@@ -59,7 +64,8 @@ app.listen(PORT, '0.0.0.0', () => {
  🔌 Master API Endpoint: http://localhost:${PORT}/v1
  🔑 Master API Key:      ${settings.masterApiKey || '(None / Public)'}
  
- 📡 Master Chat URL:     POST http://localhost:${PORT}/v1/chat/completions
+ 📡 OpenAI Ingress:     POST http://localhost:${PORT}/v1/chat/completions
+ 🤖 Anthropic Ingress:  POST http://localhost:${PORT}/v1/messages
  📋 Master Models URL:   GET  http://localhost:${PORT}/v1/models
 ==========================================================
  Active Virtual Routes:  ${storage.getRoutes().filter((r) => r.enabled).map((r) => r.alias).join(', ')}

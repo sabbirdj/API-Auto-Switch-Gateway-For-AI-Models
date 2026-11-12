@@ -312,18 +312,44 @@ console.log(completion.choices[0].message.content);</pre>
   }'</pre>
         </div>
 
-        <!-- Cursor / Open WebUI config -->
+        <!-- Anthropic Python SDK snippet -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-robot text-violet-400 text-lg"></i>
+              <span class="text-sm font-semibold text-white">Anthropic Python SDK</span>
+            </div>
+            <button onclick="copySnippet('anthropicPySnippet')" class="text-xs text-slate-400 hover:text-white"><i class="fa-regular fa-copy"></i> Copy</button>
+          </div>
+          <pre class="bg-slate-950 p-3 rounded-lg text-xs font-mono text-emerald-300 overflow-x-auto" id="anthropicPySnippet">import anthropic
+
+client = anthropic.Anthropic(
+    base_url="http://localhost:3000",
+    api_key="sk-switch-master-key"
+)
+
+message = client.messages.create(
+    model="master",  # Or 'claude-3-5-sonnet-20241022'
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Hello via Anthropic protocol!"}]
+)
+
+print(message.content[0].text)</pre>
+        </div>
+
+        <!-- Cursor / Open WebUI / Claude Code config -->
         <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
           <div class="flex items-center gap-2">
             <i class="fa-solid fa-sliders text-indigo-400 text-lg"></i>
-            <span class="text-sm font-semibold text-white">Cursor / LibreChat / Open WebUI</span>
+            <span class="text-sm font-semibold text-white">Cursor / LibreChat / Claude Code</span>
           </div>
           <div class="text-xs text-slate-300 space-y-2">
-            <p>To use this gateway in <strong>Cursor</strong>, <strong>Open WebUI</strong>, or <strong>LibreChat</strong>:</p>
+            <p>Connect tools using either <strong>OpenAI</strong> or <strong>Anthropic</strong> protocol:</p>
             <ul class="list-disc pl-5 space-y-1 text-slate-400 font-mono text-[11px]">
-              <li><strong>OpenAI Base URL:</strong> <code class="text-indigo-300">http://localhost:3000/v1</code></li>
+              <li><strong>OpenAI Endpoint:</strong> <code class="text-indigo-300">http://localhost:3000/v1</code></li>
+              <li><strong>Anthropic Endpoint:</strong> <code class="text-violet-300">http://localhost:3000</code> (<code class="text-violet-300">/v1/messages</code>)</li>
               <li><strong>API Key:</strong> <code class="text-emerald-400">sk-switch-master-key</code></li>
-              <li><strong>Model Names:</strong> <code class="text-white">master</code>, <code class="text-white">smart</code>, <code class="text-white">fast</code></li>
+              <li><strong>Models / Routes:</strong> <code class="text-white">master</code>, <code class="text-white">smart</code>, <code class="text-white">fast</code></li>
             </ul>
           </div>
         </div>

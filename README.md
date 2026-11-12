@@ -46,15 +46,35 @@ Open **[http://localhost:3000](http://localhost:3000)** in your browser:
 * Customize your switching fallback chains under **Switching Routes & Aliases**.
 * Test routes immediately in the **Live Playground**.
 
+## 📡 Dual Master Ingress Endpoints
+
+Your Master Gateway exposes **both** major API protocols simultaneously, so any client library works natively:
+
+| Protocol | Endpoint | Supported Clients |
+| :--- | :--- | :--- |
+| **OpenAI Compatible** | `POST http://localhost:3000/v1/chat/completions` | `openai` Python/JS SDK, Cursor, LibreChat, Open WebUI |
+| **Anthropic Compatible** | `POST http://localhost:3000/v1/messages` | `anthropic` Python/JS SDK, Claude Code, Cline, Roo Code |
+| **Models Registry** | `GET http://localhost:3000/v1/models` | Any OpenAI-compatible model discovery tool |
+
 ---
 
-## 📡 Using the Master API
+## 🌐 Custom & Different API URLs Supported
 
-### Master Endpoint Details
-* **Base URL**: `http://localhost:3000/v1`
-* **Chat Completions**: `POST http://localhost:3000/v1/chat/completions`
-* **Models List**: `GET http://localhost:3000/v1/models`
-* **Master API Key**: `sk-switch-master-key` (configurable in settings or dashboard)
+You can connect **any custom 3rd-party API URL** through the gateway:
+
+* **Custom OpenAI-compatible Endpoints**:
+  * **OpenRouter**: `https://openrouter.ai/api/v1`
+  * **Together AI**: `https://api.together.xyz/v1`
+  * **Mistral AI**: `https://api.mistral.ai/v1`
+  * **Perplexity**: `https://api.perplexity.ai`
+  * **Local Ollama**: `http://localhost:11434/v1`
+  * **vLLM / LM Studio / LocalAI**: `http://localhost:8000/v1` or `http://localhost:1234/v1`
+  * **Azure OpenAI**: Custom Azure deployment base URLs
+* **Custom Anthropic Endpoints**:
+  * Official Anthropic: `https://api.anthropic.com/v1`
+  * Custom proxy / AWS Bedrock / GCP Vertex Claude endpoints
+* **Google Gemini**:
+  * Official Gemini: `https://generativelanguage.googleapis.com` or custom proxy URLs
 
 ---
 
