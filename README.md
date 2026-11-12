@@ -104,11 +104,11 @@ Open your browser and navigate to:
 ## 💻 Client Configuration Guides
 
 ### 1. OpenCode (`opencode.json`)
-In your project's root folder (or globally at `~/.config/opencode/opencode.json`), configure API Switch as a custom OpenAI-compatible provider.
+Configure API Switch **globally** so it's available in every OpenCode project: edit `~/.config/opencode/opencode.json` (Windows: `C:\Users\<you>\.config\opencode\opencode.json`). A project-local `opencode.json` works too, but only inside that project.
 
 > **⚠️ Important (OpenCode V2):** Use the `"package"` field — **not** `"npm"`. The legacy `"npm": "@ai-sdk/openai"` field is rejected by OpenCode V2 and causes `SessionRunnerModel.UnsupportedPackageError` at runtime.
 
-The example below matches a real working setup: a **Coarena Ai** provider serving **GLM 5.3 Flash** and **DeepSeek V4.1** through the gateway:
+The example below matches a real working setup: a **Coarena Ai** provider serving **GLM 5.3 Flash** and **DeepSeek V4.1** through the gateway, with **GLM 5.3 Flash as the default model for every project**:
 
 ```json
 {
@@ -139,6 +139,8 @@ The example below matches a real working setup: a **Coarena Ai** provider servin
 ```
 
 > **Tip:** Model keys in the `models` map must match the model IDs your gateway exposes — check `GET http://localhost:3000/v1/models` or the dashboard at `http://localhost:3000`. Add any model your active provider serves (e.g. `llama-3.3-70b-versatile`, `gemini-2.0-flash`, `glm-5-3-flash`, `deepseek-v4-1-flash-1017`). Use `limit` to declare each model's real context/output window. To change the default model, edit the top-level `"model"` key (`api-switch/<model-id>`).
+
+> **Note:** The gateway must be running (`npm start`) for `api-switch/*` models to work. Config changes hot-reload — no OpenCode restart needed; run `/reload` in the TUI if a new provider doesn't appear.
 
 Or pass via environment variables in terminal:
 ```bash
