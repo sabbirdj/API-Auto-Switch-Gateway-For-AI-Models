@@ -1,0 +1,1020 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI API Switch & Master Gateway</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; }
+    .badge { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
+
+  <!-- Top Navigation -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+          <i class="fa-solid fa-shuffle text-white text-lg"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-lg font-bold tracking-tight text-white">API Switch</h1>
+            <span class="px-2 py-0.5 text-[10px] font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-md">Master Gateway</span>
+          </div>
+          <p class="text-xs text-slate-400">Intelligent 3rd-Party AI Switching & Router</p>
+        </div>
+      </div>
+
+      <!-- Master API Status & Info -->
+      <div class="flex items-center gap-3">
+        <div class="hidden md:flex items-center gap-2 bg-slate-800/80 border border-slate-700/60 rounded-lg px-3 py-1.5 text-xs">
+          <span class="text-slate-400">Master Base:</span>
+          <code id="displayMasterUrl" class="text-indigo-300 font-mono">http://localhost:3000/v1</code>
+          <button onclick="copyToClipboard(document.getElementById('displayMasterUrl').innerText)" class="text-slate-400 hover:text-white ml-1" title="Copy Master URL">
+            <i class="fa-regular fa-copy"></i>
+          </button>
+        </div>
+        <div class="hidden sm:flex items-center gap-2 bg-slate-800/80 border border-slate-700/60 rounded-lg px-3 py-1.5 text-xs">
+          <span class="text-slate-400">Master Key:</span>
+          <code id="displayMasterKey" class="text-emerald-400 font-mono">...</code>
+          <button onclick="copyToClipboard(masterKeyVal)" class="text-slate-400 hover:text-white ml-1" title="Copy Key">
+            <i class="fa-regular fa-copy"></i>
+          </button>
+        </div>
+        <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-medium">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          Gateway Active
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+
+    <!-- Metrics Cards -->
+    <section class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
+        <div class="text-xs font-medium text-slate-400 uppercase tracking-wider">Total Requests</div>
+        <div id="statTotalRequests" class="text-2xl font-bold text-white mt-1">0</div>
+        <div class="text-[11px] text-slate-500 mt-0.5">Processed by Master Gateway</div>
+      </div>
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
+        <div class="text-xs font-medium text-slate-400 uppercase tracking-wider">Success Rate</div>
+        <div id="statSuccessRate" class="text-2xl font-bold text-emerald-400 mt-1">100%</div>
+        <div class="text-[11px] text-slate-500 mt-0.5">With automatic failover</div>
+      </div>
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
+        <div class="text-xs font-medium text-slate-400 uppercase tracking-wider">Avg Latency</div>
+        <div id="statAvgLatency" class="text-2xl font-bold text-indigo-400 mt-1">0 ms</div>
+        <div class="text-[11px] text-slate-500 mt-0.5">End-to-end response time</div>
+      </div>
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
+        <div class="text-xs font-medium text-slate-400 uppercase tracking-wider">Total Tokens</div>
+        <div id="statTotalTokens" class="text-2xl font-bold text-violet-400 mt-1">0</div>
+        <div class="text-[11px] text-slate-500 mt-0.5">Prompt + Completion</div>
+      </div>
+    </section>
+
+    <!-- Navigation Tabs -->
+    <div class="border-b border-slate-800 flex items-center justify-between">
+      <nav class="flex gap-2" id="tabNav">
+        <button onclick="switchTab('routes')" id="tabBtn-routes" class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-indigo-500 text-indigo-400 flex items-center gap-2">
+          <i class="fa-solid fa-route"></i> Switching Routes & Aliases
+        </button>
+        <button onclick="switchTab('providers')" id="tabBtn-providers" class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2">
+          <i class="fa-solid fa-server"></i> Providers & API Keys
+        </button>
+        <button onclick="switchTab('playground')" id="tabBtn-playground" class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2">
+          <i class="fa-solid fa-terminal"></i> Live Playground
+        </button>
+        <button onclick="switchTab('logs')" id="tabBtn-logs" class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2">
+          <i class="fa-solid fa-clock-rotate-left"></i> Audit Logs
+        </button>
+        <button onclick="switchTab('connect')" id="tabBtn-connect" class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2">
+          <i class="fa-solid fa-code"></i> Connect SDKs
+        </button>
+      </nav>
+      <button onclick="refreshData()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-700 flex items-center gap-1.5 transition">
+        <i class="fa-solid fa-rotate-right"></i> Refresh
+      </button>
+    </div>
+
+    <!-- TAB 1: ROUTES & SWITCHING -->
+    <section id="tab-routes" class="space-y-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-base font-semibold text-white">Active Virtual Routes</h2>
+          <p class="text-xs text-slate-400">Configure virtual model names that automatically failover or load-balance across underlying providers.</p>
+        </div>
+        <button onclick="openNewRouteModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition shadow-lg shadow-indigo-600/20">
+          <i class="fa-solid fa-plus"></i> Add New Route
+        </button>
+      </div>
+
+      <div id="routesList" class="grid grid-cols-1 gap-4">
+        <!-- Rendered via JS -->
+      </div>
+    </section>
+
+    <!-- TAB 2: PROVIDERS & API KEYS -->
+    <section id="tab-providers" class="space-y-4 hidden">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-base font-semibold text-white">AI Provider Integrations</h2>
+          <p class="text-xs text-slate-400">Add API keys for 3rd-party providers. Supports multiple keys per provider for automatic rotation and quota pooling.</p>
+        </div>
+        <button onclick="openNewProviderModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition shadow-lg shadow-indigo-600/20">
+          <i class="fa-solid fa-plus"></i> Add Custom Provider
+        </button>
+      </div>
+
+      <div id="providersList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Rendered via JS -->
+      </div>
+    </section>
+
+    <!-- TAB 3: PLAYGROUND -->
+    <section id="tab-playground" class="space-y-4 hidden">
+      <div>
+        <h2 class="text-base font-semibold text-white">Interactive Test Playground</h2>
+        <p class="text-xs text-slate-400">Test how the Master Switch resolves, fails over, and delivers responses in real-time.</p>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Input Form -->
+        <div class="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Target Route / Model Alias</label>
+            <select id="playgroundModel" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <!-- Populated dynamically -->
+            </select>
+            <p class="text-[11px] text-slate-500 mt-1">E.g., "master" tests your primary fallback chain.</p>
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Prompt</label>
+            <textarea id="playgroundPrompt" rows="6" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none font-sans" placeholder="Type a message or question to test the switcher..."></textarea>
+          </div>
+
+          <div class="flex items-center justify-between pt-2">
+            <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+              <input type="checkbox" id="playgroundStream" checked class="rounded bg-slate-800 border-slate-700 text-indigo-600 focus:ring-0">
+              Enable Real-time Stream (SSE)
+            </label>
+            <button id="playgroundSendBtn" onclick="sendPlaygroundRequest()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-4 py-2.5 rounded-lg flex items-center gap-2 transition shadow-md shadow-indigo-600/20">
+              <i class="fa-solid fa-paper-plane"></i> Send via Master API
+            </button>
+          </div>
+        </div>
+
+        <!-- Output Screen -->
+        <div class="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col space-y-3">
+          <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Response Console</span>
+            <div id="playgroundMeta" class="text-xs text-slate-400 font-mono">Ready</div>
+          </div>
+          <div id="playgroundOutput" class="flex-1 min-h-[220px] max-h-[400px] overflow-y-auto bg-slate-950 p-4 rounded-lg font-mono text-xs text-slate-200 whitespace-pre-wrap">Click "Send via Master API" to execute through the switching router...</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: AUDIT LOGS -->
+    <section id="tab-logs" class="space-y-4 hidden">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-base font-semibold text-white">Request Audit Trail</h2>
+          <p class="text-xs text-slate-400">Detailed inspection of requests, latency, target switches, and fallback events.</p>
+        </div>
+        <button onclick="clearLogs()" class="bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/60 text-xs font-medium px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition">
+          <i class="fa-solid fa-trash"></i> Clear Logs
+        </button>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-800/60 border-b border-slate-700/60 text-slate-400 uppercase text-[10px] tracking-wider">
+              <tr>
+                <th class="py-3 px-4">Time</th>
+                <th class="py-3 px-4">Requested Alias</th>
+                <th class="py-3 px-4">Provider Used</th>
+                <th class="py-3 px-4">Model Used</th>
+                <th class="py-3 px-4">Status</th>
+                <th class="py-3 px-4">Latency</th>
+                <th class="py-3 px-4">Retries / Switch</th>
+                <th class="py-3 px-4">Tokens</th>
+              </tr>
+            </thead>
+            <tbody id="logsTableBody" class="divide-y divide-slate-800/80 font-mono">
+              <!-- Logs populated here -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 5: CONNECT SDks -->
+    <section id="tab-connect" class="space-y-6 hidden">
+      <div>
+        <h2 class="text-base font-semibold text-white">Connect Any Client or SDK</h2>
+        <p class="text-xs text-slate-400">Because API Switch exposes the standard OpenAI API specification, you can plug it into any library or tool immediately.</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Python snippet -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <i class="fa-brands fa-python text-amber-400 text-lg"></i>
+              <span class="text-sm font-semibold text-white">Python (openai SDK)</span>
+            </div>
+            <button onclick="copySnippet('pythonSnippet')" class="text-xs text-slate-400 hover:text-white"><i class="fa-regular fa-copy"></i> Copy</button>
+          </div>
+          <pre class="bg-slate-950 p-3 rounded-lg text-xs font-mono text-emerald-300 overflow-x-auto" id="pythonSnippet">from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:3000/v1",
+    api_key="sk-switch-master-key"
+)
+
+response = client.chat.completions.create(
+    model="master",  # Uses your switching/fallback chain!
+    messages=[{"role": "user", "content": "Hello!"}],
+    stream=True
+)
+
+for chunk in response:
+    if chunk.choices[0].delta.content:
+        print(chunk.choices[0].delta.content, end="")</pre>
+        </div>
+
+        <!-- Node.js snippet -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <i class="fa-brands fa-node-js text-emerald-400 text-lg"></i>
+              <span class="text-sm font-semibold text-white">Node.js / TypeScript</span>
+            </div>
+            <button onclick="copySnippet('nodeSnippet')" class="text-xs text-slate-400 hover:text-white"><i class="fa-regular fa-copy"></i> Copy</button>
+          </div>
+          <pre class="bg-slate-950 p-3 rounded-lg text-xs font-mono text-emerald-300 overflow-x-auto" id="nodeSnippet">import OpenAI from 'openai';
+
+const openai = new OpenAI({
+  baseURL: 'http://localhost:3000/v1',
+  apiKey: 'sk-switch-master-key',
+});
+
+const completion = await openai.chat.completions.create({
+  model: 'master', // Or 'smart', 'fast', etc.
+  messages: [{ role: 'user', content: 'Explain quantum computing in 1 sentence.' }],
+});
+
+console.log(completion.choices[0].message.content);</pre>
+        </div>
+
+        <!-- cURL snippet -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-terminal text-slate-300 text-lg"></i>
+              <span class="text-sm font-semibold text-white">cURL Command</span>
+            </div>
+            <button onclick="copySnippet('curlSnippet')" class="text-xs text-slate-400 hover:text-white"><i class="fa-regular fa-copy"></i> Copy</button>
+          </div>
+          <pre class="bg-slate-950 p-3 rounded-lg text-xs font-mono text-emerald-300 overflow-x-auto" id="curlSnippet">curl http://localhost:3000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer sk-switch-master-key" \
+  -d '{
+    "model": "master",
+    "messages": [{"role": "user", "content": "Ping"}]
+  }'</pre>
+        </div>
+
+        <!-- Cursor / Open WebUI config -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-sliders text-indigo-400 text-lg"></i>
+            <span class="text-sm font-semibold text-white">Cursor / LibreChat / Open WebUI</span>
+          </div>
+          <div class="text-xs text-slate-300 space-y-2">
+            <p>To use this gateway in <strong>Cursor</strong>, <strong>Open WebUI</strong>, or <strong>LibreChat</strong>:</p>
+            <ul class="list-disc pl-5 space-y-1 text-slate-400 font-mono text-[11px]">
+              <li><strong>OpenAI Base URL:</strong> <code class="text-indigo-300">http://localhost:3000/v1</code></li>
+              <li><strong>API Key:</strong> <code class="text-emerald-400">sk-switch-master-key</code></li>
+              <li><strong>Model Names:</strong> <code class="text-white">master</code>, <code class="text-white">smart</code>, <code class="text-white">fast</code></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Route Edit Modal -->
+  <div id="routeModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between">
+        <h3 id="routeModalTitle" class="text-base font-bold text-white">Edit Route</h3>
+        <button onclick="closeRouteModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <input type="hidden" id="modalRouteId">
+      <div>
+        <label class="block text-xs font-medium text-slate-300 mb-1">Route Alias (Model identifier used by clients)</label>
+        <input type="text" id="modalRouteAlias" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g. master, gpt-4o, fast">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-300 mb-1">Description</label>
+        <input type="text" id="modalRouteDescription" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Purpose of this route">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-300 mb-1">Routing Strategy</label>
+        <select id="modalRouteStrategy" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <option value="fallback">Fallback Chain (Sequential switch on failure/rate-limit)</option>
+          <option value="load_balance">Load Balancing (Weighted / distributed)</option>
+        </select>
+      </div>
+
+      <div>
+        <div class="flex items-center justify-between mb-1.5">
+          <label class="text-xs font-medium text-slate-300">Target Fallback Chain (Order of execution)</label>
+          <button type="button" onclick="addTargetRow()" class="text-indigo-400 hover:text-indigo-300 text-xs flex items-center gap-1">
+            <i class="fa-solid fa-plus"></i> Add Target
+          </button>
+        </div>
+        <div id="modalTargetsContainer" class="space-y-2 max-h-48 overflow-y-auto pr-1">
+          <!-- Target items rendered here -->
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-3 border-t border-slate-800">
+        <button onclick="closeRouteModal()" class="px-4 py-2 text-xs font-medium text-slate-400 hover:text-white">Cancel</button>
+        <button onclick="saveRouteFromModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-4 py-2 rounded-lg">Save Route</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Provider Edit Modal -->
+  <div id="providerModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between">
+        <h3 id="providerModalTitle" class="text-base font-bold text-white">Edit Provider</h3>
+        <button onclick="closeProviderModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <input type="hidden" id="modalProviderId">
+      <div>
+        <label class="block text-xs font-medium text-slate-300 mb-1">Provider Display Name</label>
+        <input type="text" id="modalProviderName" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g. OpenAI, Google Gemini">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-300 mb-1">Type / Adapter Protocol</label>
+        <select id="modalProviderType" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <option value="gemini">Google Gemini</option>
+          <option value="groq">Groq Cloud (Llama/Mixtral/DeepSeek)</option>
+          <option value="openai">OpenAI</option>
+          <option value="anthropic">Anthropic Claude</option>
+          <option value="deepseek">DeepSeek</option>
+          <option value="ollama">Ollama (Local)</option>
+          <option value="custom">Custom (OpenAI-compatible)</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-300 mb-1">Base URL (Leave blank for official default)</label>
+        <input type="text" id="modalProviderBaseUrl" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="https://api.openai.com/v1">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-300 mb-1">API Keys (One per line for rotation/pooling)</label>
+        <textarea id="modalProviderKeys" rows="3" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-xs text-white font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" placeholder="Paste your API key here (sk-...)"></textarea>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-300 mb-1">Available Models (Comma separated)</label>
+        <input type="text" id="modalProviderModels" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="model-1, model-2">
+      </div>
+
+      <div class="flex justify-end gap-2 pt-3 border-t border-slate-800">
+        <button onclick="closeProviderModal()" class="px-4 py-2 text-xs font-medium text-slate-400 hover:text-white">Cancel</button>
+        <button onclick="saveProviderFromModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-4 py-2 rounded-lg">Save Provider</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let appConfig = null;
+    let masterKeyVal = 'sk-switch-master-key';
+
+    async function loadConfig() {
+      try {
+        const res = await fetch('/api/config');
+        appConfig = await res.json();
+        masterKeyVal = appConfig.settings.masterApiKey || '';
+        document.getElementById('displayMasterKey').innerText = masterKeyVal || 'None';
+        updateStats(appConfig.stats);
+        renderRoutes();
+        renderProviders();
+        populatePlaygroundModels();
+      } catch (err) {
+        console.error('Failed to load config:', err);
+      }
+    }
+
+    async function loadLogs() {
+      try {
+        const res = await fetch('/api/logs?limit=50');
+        const data = await res.json();
+        renderLogs(data.logs || []);
+      } catch (err) {
+        console.error('Failed to load logs:', err);
+      }
+    }
+
+    function updateStats(stats) {
+      if (!stats) return;
+      document.getElementById('statTotalRequests').innerText = stats.totalRequests || 0;
+      document.getElementById('statSuccessRate').innerText = stats.successRate || '100%';
+      document.getElementById('statAvgLatency').innerText = `${stats.averageLatencyMs || 0} ms`;
+      document.getElementById('statTotalTokens').innerText = (stats.totalTokens || 0).toLocaleString();
+    }
+
+    function renderRoutes() {
+      const container = document.getElementById('routesList');
+      if (!appConfig || !appConfig.routes) return;
+
+      container.innerHTML = appConfig.routes.map(route => {
+        const stratColor = route.strategy === 'fallback' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+        const stratLabel = route.strategy === 'fallback' ? 'Failover Chain' : 'Load Balanced';
+
+        const targetsHtml = route.targets.map((t, idx) => {
+          const prov = appConfig.providers.find(p => p.id === t.providerId);
+          const provName = prov ? prov.name : t.providerId;
+          const hasKey = prov && prov.apiKeys && prov.apiKeys.length > 0;
+          return `
+            <div class="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800 text-xs">
+              <span class="w-5 h-5 rounded-full bg-slate-800 flex items-center justify-center font-mono text-[10px] text-slate-400">${idx + 1}</span>
+              <span class="font-medium text-white">${provName}</span>
+              <span class="text-slate-500">/</span>
+              <code class="text-indigo-300 font-mono text-[11px]">${t.model}</code>
+              ${hasKey ? '<span class="w-2 h-2 rounded-full bg-emerald-400" title="Key Active"></span>' : '<span class="w-2 h-2 rounded-full bg-amber-400" title="Missing Key"></span>'}
+            </div>
+          `;
+        }).join('<div class="text-slate-600 flex items-center"><i class="fa-solid fa-arrow-right text-xs"></i></div>');
+
+        return `
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <span class="text-base font-bold text-white tracking-wide font-mono">${route.alias}</span>
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-medium border ${stratColor}">${stratLabel}</span>
+                ${route.enabled ? '<span class="text-xs text-emerald-400 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Enabled</span>' : '<span class="text-xs text-slate-500">Disabled</span>'}
+              </div>
+              <div class="flex items-center gap-2">
+                <button onclick="editRoute('${route.id}')" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-700 transition">
+                  <i class="fa-solid fa-pen-to-square mr-1"></i> Edit
+                </button>
+                <button onclick="deleteRoute('${route.id}')" class="text-xs bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 px-2.5 py-1.5 rounded-lg border border-rose-800/40 transition">
+                  <i class="fa-solid fa-trash"></i>
+                </button>
+              </div>
+            </div>
+            ${route.description ? `<p class="text-xs text-slate-400">${route.description}</p>` : ''}
+            <div class="flex flex-wrap items-center gap-2 pt-1">
+              ${targetsHtml}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderProviders() {
+      const container = document.getElementById('providersList');
+      if (!appConfig || !appConfig.providers) return;
+
+      container.innerHTML = appConfig.providers.map(prov => {
+        const keyCount = (prov.apiKeys || []).length;
+        const hasKeys = keyCount > 0;
+        const iconClass = {
+          'openai': 'fa-solid fa-brain',
+          'anthropic': 'fa-solid fa-robot',
+          'gemini': 'fa-solid fa-bolt',
+          'groq': 'fa-solid fa-bolt-lightning',
+          'deepseek': 'fa-solid fa-microchip',
+          'ollama': 'fa-solid fa-computer',
+        }[prov.type] || 'fa-solid fa-server';
+
+        return `
+          <div class="bg-slate-900 border ${prov.enabled ? 'border-slate-800' : 'border-slate-800/40 opacity-70'} rounded-xl p-5 space-y-4 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center">
+                    <i class="${iconClass}"></i>
+                  </div>
+                  <div>
+                    <h3 class="text-sm font-bold text-white">${prov.name}</h3>
+                    <span class="text-[10px] text-slate-400 font-mono">${prov.type}</span>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" ${prov.enabled ? 'checked' : ''} onchange="toggleProviderEnabled('${prov.id}', this.checked)" class="sr-only peer">
+                    <div class="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-indigo-600"></div>
+                  </label>
+                </div>
+              </div>
+
+              <div class="space-y-1.5 text-xs text-slate-400 my-3">
+                <div class="flex items-center justify-between">
+                  <span>API Keys Pool:</span>
+                  <span class="font-mono ${hasKeys ? 'text-emerald-400' : 'text-rose-400'}">${hasKeys ? `${keyCount} active` : 'None configured'}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span>Models:</span>
+                  <span class="text-slate-300 font-mono">${(prov.models || []).length} available</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
+              <button onclick="testProviderConnection('${prov.id}')" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-700 flex items-center gap-1 transition">
+                <i class="fa-solid fa-vial"></i> Test
+              </button>
+              <div class="flex items-center gap-1.5">
+                <button onclick="editProvider('${prov.id}')" class="text-xs bg-slate-800 hover:bg-slate-700 text-indigo-300 px-3 py-1.5 rounded-lg border border-slate-700 transition">
+                  <i class="fa-solid fa-key mr-1"></i> Keys & Settings
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderLogs(logs) {
+      const tbody = document.getElementById('logsTableBody');
+      if (!logs || logs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-6 text-slate-500">No requests recorded yet. Make a call to see live logs!</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = logs.map(l => {
+        const timeStr = new Date(l.timestamp).toLocaleTimeString();
+        const isSuccess = l.status === 'success';
+        const statusBadge = isSuccess
+          ? `<span class="text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded text-[10px] font-semibold">200 OK</span>`
+          : `<span class="text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded text-[10px] font-semibold">${l.statusCode || 'ERR'}</span>`;
+
+        const retryBadge = l.retries > 0
+          ? `<span class="text-amber-400 font-semibold" title="${(l.fallbackChain || []).join(' | ')}">${l.retries} failover(s)</span>`
+          : `<span class="text-slate-500">Direct</span>`;
+
+        const tokensStr = l.tokens?.total_tokens ? l.tokens.total_tokens.toLocaleString() : '-';
+
+        return `
+          <tr class="hover:bg-slate-800/40 transition">
+            <td class="py-2.5 px-4 text-slate-400">${timeStr}</td>
+            <td class="py-2.5 px-4 font-bold text-indigo-300">${l.aliasRequested}</td>
+            <td class="py-2.5 px-4 text-white">${l.providerNameUsed || l.providerIdUsed}</td>
+            <td class="py-2.5 px-4 text-slate-300">${l.modelUsed}</td>
+            <td class="py-2.5 px-4">${statusBadge}</td>
+            <td class="py-2.5 px-4 text-slate-300">${l.latencyMs} ms</td>
+            <td class="py-2.5 px-4">${retryBadge}</td>
+            <td class="py-2.5 px-4 text-slate-400">${tokensStr}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function populatePlaygroundModels() {
+      const select = document.getElementById('playgroundModel');
+      if (!appConfig) return;
+      select.innerHTML = '';
+
+      // Add Routes
+      const routeGroup = document.createElement('optgroup');
+      routeGroup.label = '⚡ Virtual Switching Routes';
+      for (const r of (appConfig.routes || [])) {
+        if (r.enabled) {
+          const opt = document.createElement('option');
+          opt.value = r.alias;
+          opt.innerText = `${r.alias} (${r.strategy === 'fallback' ? 'Failover' : 'Load Balanced'})`;
+          routeGroup.appendChild(opt);
+        }
+      }
+      select.appendChild(routeGroup);
+
+      // Add Physical Models
+      const modelGroup = document.createElement('optgroup');
+      modelGroup.label = '🎯 Direct Provider Models';
+      for (const p of (appConfig.providers || [])) {
+        if (p.enabled) {
+          for (const m of (p.models || [])) {
+            const opt = document.createElement('option');
+            opt.value = m;
+            opt.innerText = `${m} (${p.name})`;
+            modelGroup.appendChild(opt);
+          }
+        }
+      }
+      select.appendChild(modelGroup);
+    }
+
+    // --- Tab Switching ---
+    function switchTab(tabId) {
+      ['routes', 'providers', 'playground', 'logs', 'connect'].forEach(t => {
+        document.getElementById(`tab-${t}`).classList.add('hidden');
+        document.getElementById(`tabBtn-${t}`).className = 'tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2';
+      });
+      document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+      document.getElementById(`tabBtn-${tabId}`).className = 'tab-btn px-4 py-3 text-sm font-medium border-b-2 border-indigo-500 text-indigo-400 flex items-center gap-2';
+      if (tabId === 'logs') loadLogs();
+    }
+
+    // --- Playground Execution ---
+    async function sendPlaygroundRequest() {
+      const model = document.getElementById('playgroundModel').value;
+      const prompt = document.getElementById('playgroundPrompt').value.trim();
+      const isStream = document.getElementById('playgroundStream').checked;
+      const out = document.getElementById('playgroundOutput');
+      const meta = document.getElementById('playgroundMeta');
+      const btn = document.getElementById('playgroundSendBtn');
+
+      if (!prompt) {
+        alert('Please enter a prompt first.');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Routing...`;
+      out.innerText = '';
+      meta.innerText = 'Connecting to Master Gateway...';
+
+      const startTime = Date.now();
+
+      if (isStream) {
+        try {
+          const response = await fetch('/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${masterKeyVal}`
+            },
+            body: JSON.stringify({
+              model,
+              messages: [{ role: 'user', content: prompt }],
+              stream: true
+            })
+          });
+
+          if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err?.error?.message || response.statusText);
+          }
+
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder('utf-8');
+          let buffer = '';
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed.startsWith('data:')) continue;
+              const data = trimmed.slice(5).trim();
+              if (data === '[DONE]') continue;
+              try {
+                const parsed = JSON.parse(data);
+                const delta = parsed.choices?.[0]?.delta?.content || '';
+                out.innerText += delta;
+                out.scrollTop = out.scrollHeight;
+              } catch {}
+            }
+          }
+
+          const totalMs = Date.now() - startTime;
+          meta.innerText = `Stream completed in ${totalMs} ms`;
+          refreshData();
+        } catch (err) {
+          out.innerText = `[Error]: ${err.message}`;
+          meta.innerText = 'Failed';
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> Send via Master API`;
+        }
+      } else {
+        try {
+          const response = await fetch('/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${masterKeyVal}`
+            },
+            body: JSON.stringify({
+              model,
+              messages: [{ role: 'user', content: prompt }],
+              stream: false
+            })
+          });
+
+          const data = await response.json();
+          const totalMs = Date.now() - startTime;
+
+          if (data.error) {
+            out.innerText = `[Error]: ${data.error.message}`;
+            meta.innerText = 'Failed';
+          } else {
+            out.innerText = data.choices?.[0]?.message?.content || JSON.stringify(data, null, 2);
+            meta.innerText = `Model: ${data.model} | Latency: ${totalMs} ms | Tokens: ${data.usage?.total_tokens || '-'}`;
+          }
+          refreshData();
+        } catch (err) {
+          out.innerText = `[Network Error]: ${err.message}`;
+          meta.innerText = 'Failed';
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> Send via Master API`;
+        }
+      }
+    }
+
+    // --- Provider Actions ---
+    async function testProviderConnection(providerId) {
+      const prov = appConfig.providers.find(p => p.id === providerId);
+      if (!prov || !prov.apiKeys || prov.apiKeys.length === 0) {
+        alert('Please add at least one API key first.');
+        editProvider(providerId);
+        return;
+      }
+      const testBtn = event.currentTarget;
+      testBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Testing...`;
+      try {
+        const res = await fetch(`/api/providers/${providerId}/test`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        const result = await res.json();
+        if (result.ok) {
+          alert(`✅ Success (${result.latencyMs}ms): ${result.message}`);
+        } else {
+          alert(`❌ Failed (${result.latencyMs}ms): ${result.message}`);
+        }
+      } catch (err) {
+        alert(`❌ Connection error: ${err.message}`);
+      } finally {
+        testBtn.innerHTML = `<i class="fa-solid fa-vial"></i> Test`;
+      }
+    }
+
+    async function toggleProviderEnabled(id, enabled) {
+      const prov = appConfig.providers.find(p => p.id === id);
+      if (!prov) return;
+      prov.enabled = enabled;
+      await fetch('/api/providers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(prov)
+      });
+      refreshData();
+    }
+
+    function editProvider(id) {
+      const prov = appConfig.providers.find(p => p.id === id);
+      if (!prov) return;
+      document.getElementById('providerModalTitle').innerText = `Configure ${prov.name}`;
+      document.getElementById('modalProviderId').value = prov.id;
+      document.getElementById('modalProviderName').value = prov.name;
+      document.getElementById('modalProviderType').value = prov.type;
+      document.getElementById('modalProviderBaseUrl').value = prov.baseUrl || '';
+      document.getElementById('modalProviderKeys').value = (prov.apiKeys || []).join('\n');
+      document.getElementById('modalProviderModels').value = (prov.models || []).join(', ');
+      document.getElementById('providerModal').classList.remove('hidden');
+    }
+
+    function openNewProviderModal() {
+      document.getElementById('providerModalTitle').innerText = 'Add New Provider';
+      document.getElementById('modalProviderId').value = '';
+      document.getElementById('modalProviderName').value = '';
+      document.getElementById('modalProviderType').value = 'custom';
+      document.getElementById('modalProviderBaseUrl').value = '';
+      document.getElementById('modalProviderKeys').value = '';
+      document.getElementById('modalProviderModels').value = '';
+      document.getElementById('providerModal').classList.remove('hidden');
+    }
+
+    function closeProviderModal() {
+      document.getElementById('providerModal').classList.add('hidden');
+    }
+
+    async function saveProviderFromModal() {
+      const id = document.getElementById('modalProviderId').value;
+      const name = document.getElementById('modalProviderName').value.trim();
+      const type = document.getElementById('modalProviderType').value;
+      const baseUrl = document.getElementById('modalProviderBaseUrl').value.trim();
+      const keysText = document.getElementById('modalProviderKeys').value;
+      const modelsText = document.getElementById('modalProviderModels').value;
+
+      const apiKeys = keysText.split('\n').map(k => k.trim()).filter(Boolean);
+      const models = modelsText.split(',').map(m => m.trim()).filter(Boolean);
+
+      const payload = {
+        id: id || undefined,
+        name,
+        type,
+        baseUrl,
+        apiKeys,
+        models,
+        defaultModel: models[0] || '',
+        enabled: true
+      };
+
+      await fetch('/api/providers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      closeProviderModal();
+      refreshData();
+    }
+
+    // --- Route Actions ---
+    function editRoute(id) {
+      const route = appConfig.routes.find(r => r.id === id);
+      if (!route) return;
+      document.getElementById('routeModalTitle').innerText = `Edit Route: ${route.alias}`;
+      document.getElementById('modalRouteId').value = route.id;
+      document.getElementById('modalRouteAlias').value = route.alias;
+      document.getElementById('modalRouteDescription').value = route.description || '';
+      document.getElementById('modalRouteStrategy').value = route.strategy;
+
+      const container = document.getElementById('modalTargetsContainer');
+      container.innerHTML = '';
+      route.targets.forEach(t => addTargetRow(t.providerId, t.model, t.weight));
+      document.getElementById('routeModal').classList.remove('hidden');
+    }
+
+    function openNewRouteModal() {
+      document.getElementById('routeModalTitle').innerText = 'Add New Switching Route';
+      document.getElementById('modalRouteId').value = '';
+      document.getElementById('modalRouteAlias').value = '';
+      document.getElementById('modalRouteDescription').value = '';
+      document.getElementById('modalRouteStrategy').value = 'fallback';
+
+      const container = document.getElementById('modalTargetsContainer');
+      container.innerHTML = '';
+      addTargetRow();
+      document.getElementById('routeModal').classList.remove('hidden');
+    }
+
+    function closeRouteModal() {
+      document.getElementById('routeModal').classList.add('hidden');
+    }
+
+    function addTargetRow(selectedProviderId = '', selectedModel = '', weight = 50) {
+      const container = document.getElementById('modalTargetsContainer');
+      const row = document.createElement('div');
+      row.className = 'target-row flex items-center gap-2 bg-slate-800/80 p-2 rounded-lg border border-slate-700/60';
+
+      const provOptions = appConfig.providers.map(p =>
+        `<option value="${p.id}" ${p.id === selectedProviderId ? 'selected' : ''}>${p.name}</option>`
+      ).join('');
+
+      row.innerHTML = `
+        <select class="target-provider bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white flex-1" onchange="onTargetProviderChange(this)">
+          ${provOptions}
+        </select>
+        <input type="text" class="target-model bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white font-mono flex-1" placeholder="model name" value="${selectedModel}">
+        <button type="button" onclick="this.closest('.target-row').remove()" class="text-rose-400 hover:text-rose-300 px-1 text-xs">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      `;
+      container.appendChild(row);
+
+      // If no model entered, auto-populate first provider's default
+      if (!selectedModel) {
+        const provSelect = row.querySelector('.target-provider');
+        onTargetProviderChange(provSelect);
+      }
+    }
+
+    function onTargetProviderChange(selectElem) {
+      const provId = selectElem.value;
+      const prov = appConfig.providers.find(p => p.id === provId);
+      const row = selectElem.closest('.target-row');
+      const modelInput = row.querySelector('.target-model');
+      if (prov && (!modelInput.value || modelInput.value.trim() === '')) {
+        modelInput.value = prov.defaultModel || prov.models[0] || '';
+      }
+    }
+
+    async function saveRouteFromModal() {
+      const id = document.getElementById('modalRouteId').value;
+      const alias = document.getElementById('modalRouteAlias').value.trim();
+      const description = document.getElementById('modalRouteDescription').value.trim();
+      const strategy = document.getElementById('modalRouteStrategy').value;
+
+      const targetRows = document.querySelectorAll('#modalTargetsContainer .target-row');
+      const targets = [];
+      targetRows.forEach(row => {
+        const providerId = row.querySelector('.target-provider').value;
+        const model = row.querySelector('.target-model').value.trim();
+        if (providerId && model) {
+          targets.push({ providerId, model });
+        }
+      });
+
+      if (!alias) {
+        alert('Please enter a route alias.');
+        return;
+      }
+      if (targets.length === 0) {
+        alert('Please add at least one target provider/model.');
+        return;
+      }
+
+      const payload = {
+        id: id || undefined,
+        alias,
+        description,
+        strategy,
+        targets,
+        enabled: true
+      };
+
+      await fetch('/api/routes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      closeRouteModal();
+      refreshData();
+    }
+
+    async function deleteRoute(id) {
+      if (!confirm('Are you sure you want to delete this route?')) return;
+      await fetch(`/api/routes/${id}`, { method: 'DELETE' });
+      refreshData();
+    }
+
+    async function clearLogs() {
+      if (!confirm('Clear all audit logs?')) return;
+      await fetch('/api/logs', { method: 'DELETE' });
+      loadLogs();
+      refreshData();
+    }
+
+    function copyToClipboard(text) {
+      navigator.clipboard.writeText(text);
+      alert('Copied to clipboard: ' + text);
+    }
+
+    function copySnippet(elementId) {
+      const text = document.getElementById(elementId).innerText;
+      copyToClipboard(text);
+    }
+
+    async function refreshData() {
+      await loadConfig();
+      if (!document.getElementById('tab-logs').classList.contains('hidden')) {
+        await loadLogs();
+      }
+    }
+
+    // Auto-refresh initialization
+    window.addEventListener('DOMContentLoaded', () => {
+      refreshData();
+      setInterval(() => {
+        if (!document.getElementById('tab-logs').classList.contains('hidden')) {
+          loadLogs();
+        }
+      }, 5000);
+    });
+  </script>
+</body>
+</html>
