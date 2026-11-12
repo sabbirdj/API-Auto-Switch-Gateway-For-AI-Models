@@ -1,0 +1,12 @@
+{
+  "name": "opencode-api-switch-sync",
+  "version": "1.0.0",
+  "description": "Auto-detect models exposed by an API Switch Gateway (OpenAI-compatible /v1/models) and register them in OpenCode",
+  "type": "module",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "dependencies": {
+    "@opencode/plugin": "latest"
+  }
+}

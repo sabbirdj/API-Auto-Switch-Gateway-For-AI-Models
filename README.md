@@ -149,6 +149,30 @@ export OPENAI_API_KEY="sk_564dd7437hn3v7cx738m83v"
 opencode
 ```
 
+#### 🤖 Automatic model detection (plugin)
+
+Don't want to edit `models` by hand? The bundled OpenCode plugin fetches `GET /v1/models` from the gateway and registers every model it finds automatically — add a model in the dashboard and it appears in OpenCode's `/models` picker within a minute, in every project.
+
+Add this to the same config file (global for all projects):
+
+```jsonc
+{
+  "plugins": [
+    {
+      "package": "C:/path/to/API Switch/plugins/opencode-model-sync",
+      "options": {
+        "gatewayURL": "http://localhost:3000",
+        "apiKey": "sk_564dd7437hn3v7cx738m83v",  // gateway Master Key
+        "providerID": "api-switch",               // OpenCode provider ID
+        "pollSec": 60                              // refresh interval
+      }
+    }
+  ]
+}
+```
+
+The plugin creates the `api-switch` provider itself, so with it installed you can omit the manual `providers.api-switch` block above. If the gateway is offline, the plugin keeps the last known model list so sessions don't break.
+
 ---
 
 ### 2. Cursor / Open WebUI / LibreChat
@@ -282,6 +306,8 @@ MASTER_API_KEY=sk_564dd7437hn3v7cx738m83v
 API-Auto-Switch-Gateway-For-AI-Models/
 ├── public/
 │   └── index.html             # Single-Page Web Admin Dashboard (Tailwind CSS, Icons)
+├── plugins/
+│   └── opencode-model-sync/   # OpenCode plugin: auto-detect gateway models in /models
 ├── src/
 │   ├── index.ts               # Express server entry point & route definitions
 │   ├── adapters/              # Provider translation layers
