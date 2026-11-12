@@ -1,98 +1,190 @@
-# 🔀 AI API Switch & Master Gateway
+# 🔀 AI Auto-Switch Gateway For AI Models
 
-An intelligent AI proxy and routing gateway that exposes a single, unified **Master OpenAI-compatible API** (`/v1/chat/completions`) while dynamically switching, load-balancing, and failing over across multiple 3rd-party AI providers (Google Gemini, Groq, OpenAI, Anthropic Claude, DeepSeek, and local Ollama).
+> **Universal, low-latency AI proxy gateway that pools multiple API keys per provider, automatically switches keys on `429 Rate Limit` errors, and exposes unified OpenAI & Anthropic compatible endpoints.**
 
----
-
-## ✨ Key Features
-
-1. **One Master API for Everything**: Standard OpenAI `/v1/chat/completions` and `/v1/models` endpoints. Connect Cursor, LibreChat, Open WebUI, Python `openai` SDK, or LangChain without changing code.
-2. **Provider Normalization & Adapters**: Bidirectional translation layer for:
-   * **Google Gemini** (contents / systemInstruction / SSE streams)
-   * **Anthropic Claude** (messages / system / SSE deltas)
-   * **OpenAI, Groq, DeepSeek, Mistral, Ollama** (direct proxy & streaming)
-3. **Automated Failover Chains**: If your primary model hits a `429 Rate Limit`, times out, or returns `5xx`, the gateway switches seamlessly to the next configured fallback provider in milliseconds.
-4. **Virtual Model Aliasing**: Define virtual routes like `master`, `smart`, or `fast`:
-   * `master` $\rightarrow$ Gemini Flash $\rightarrow$ Groq Llama 3.3 $\rightarrow$ GPT-4o-mini $\rightarrow$ Claude 3.5 Sonnet
-   * `fast` $\rightarrow$ 50/50 Load balance between Groq and Gemini Flash
-5. **Key Pooling & Quota Rotation**: Store multiple API keys per provider to rotate requests and bypass single-key limits.
-6. **Full Streaming SSE Support**: Real-time token streaming normalized into OpenAI delta events.
-7. **Built-in Web Admin Dashboard**:
-   * Visual route manager and fallback chain editor
-   * Provider key manager with live connection latency tester
-   * Interactive live testing playground
-   * Real-time request audit logs and token metrics
+[![Node.js](https://img.shields.io/badge/Node.js-v20+-green.svg?logo=node.js)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg?logo=typescript)](https://www.typescriptlang.org/)
+[![Express](https://img.shields.io/badge/Express-5.x-black.svg?logo=express)](https://expressjs.com/)
+[![License](https://img.shields.io/badge/license-ISC-orange.svg)](LICENSE)
+[![Cache](https://img.shields.io/badge/0ms-Memory%20Cache-emerald.svg)]()
+[![Streaming](https://img.shields.io/badge/SSE-Realtime%20Stream-violet.svg)]()
 
 ---
 
-## 🚀 Quick Start
+## 📖 Overview
 
-### 1. Install & Build
+When developing with AI coding assistants (like **OpenCode**, **Cursor**, **Cline**, or custom applications), free or low-tier API keys frequently run into **`429 Too Many Requests` (Rate Limits)**. 
+
+**AI Auto-Switch Gateway** solves this problem by acting as an intelligent middleman:
+1. You paste **multiple API keys** for any provider (Groq, Google Gemini, OpenAI, Anthropic Claude, DeepSeek, OpenRouter, etc.).
+2. You point your tools (OpenCode, Cursor, Python scripts) to **one single local endpoint** (`http://localhost:3000/v1`).
+3. Whenever a key hits a rate limit or quota exhaustion, the gateway **automatically switches to the next available key in milliseconds** without your client application ever noticing or crashing!
+
+---
+
+## 🚀 Key Features
+
+* 🔄 **Zero-Downtime Multi-Key Auto-Rotation**: Paste 2, 5, 10, or 50 keys for any provider. The router round-robins across keys and transparently fails over to the next key on HTTP 429, timeouts, or 5xx errors.
+* ⏳ **Smart Cooldown Recovery**: Rate-limited keys automatically enter an isolated cooldown state (default 60s) and rejoin the rotation pool once their rate limit window expires.
+* 🔌 **Dual Universal Ingress (OpenAI + Anthropic)**:
+  * **OpenAI Format:** `POST http://localhost:3000/v1/chat/completions` & `GET /v1/models`
+  * **Anthropic Format:** `POST http://localhost:3000/v1/messages`
+* ⚡ **Instant 0ms In-Memory Response Cache**: Identical prompts are served directly from RAM in **< 1ms**, preserving API quotas and providing zero-latency responses.
+* 🌊 **Low-Latency Server-Sent Events (SSE) Streaming**: Words stream to your editor/client in real time with Time-To-First-Token (TTFT) as fast as **~100–200 ms**.
+* 🌐 **Any Provider & Custom Base URL Support**: Built-in support for **Google Gemini**, **Groq**, **OpenAI**, **Anthropic Claude**, **DeepSeek**, and **Ollama**, plus custom endpoints like **OpenRouter**, **Together AI**, **Mistral**, **vLLM**, **LM Studio**, and **Azure OpenAI**.
+* 🖥️ **Modern Web Admin Dashboard**: Beautiful dark-mode UI at `http://localhost:3000` with live key status badges, real-time streaming playground, request audit logs, and provider management.
+
+---
+
+## 🏗️ Architecture & How It Works
+
+```
+ Client (OpenCode, Cursor, Cline, SDKs)
+                  │
+                  ▼
+   AI Auto-Switch Gateway (localhost:3000)
+                  │
+      ┌───────────┴──────────────────────────────┐
+      │ ⚡ Check 0ms In-Memory Cache             │
+      │ 🔑 Select Active Provider & Available Key│
+      └───────────┬──────────────────────────────┘
+                  │
+        ┌─────────┴───────────────────────┐
+        ▼                                 ▼
+   [ Key 1 ]                         [ Key 2 ]
+   ❌ 429 Rate Limit!                ✅ Success!
+   (Placed in cooldown for 60s)      (Returns stream to client)
+                  │
+                  ▼
+        Upstream AI Providers
+ (Groq / Gemini / OpenAI / Anthropic / DeepSeek / Custom)
+```
+
+---
+
+## ⚡ Quick Start
+
+### 1. Prerequisites
+* [Node.js](https://nodejs.org/) (v18.0.0 or higher, v20+ recommended)
+* `npm` or `yarn`
+
+### 2. Installation
 ```bash
-# Clone or navigate to the workspace
-cd "API Switch"
+# Clone the repository
+git clone https://github.com/sabbirdj/API-Auto-Switch-Gateway-For-AI-Models.git
+cd API-Auto-Switch-Gateway-For-AI-Models
 
-# Run in development mode (with hot-reload)
+# Install dependencies
+npm install
+```
+
+### 3. Build & Run
+
+#### Development Mode (with live hot-reload):
+```bash
 npm run dev
+```
 
-# Or build and run for production
+#### Production Mode:
+```bash
 npm run build
 npm start
 ```
 
-### 2. Access the Dashboard
-Open **[http://localhost:3000](http://localhost:3000)** in your browser:
-* Add your API keys under **Providers & API Keys** (OpenAI, Gemini, Groq, Anthropic, DeepSeek, Ollama).
-* Customize your switching fallback chains under **Switching Routes & Aliases**.
-* Test routes immediately in the **Live Playground**.
+### 4. Access the Dashboard
+Open your browser and navigate to:
+👉 **[http://localhost:3000](http://localhost:3000)**
 
-## 📡 Dual Master Ingress Endpoints
-
-Your Master Gateway exposes **both** major API protocols simultaneously, so any client library works natively:
-
-| Protocol | Endpoint | Supported Clients |
-| :--- | :--- | :--- |
-| **OpenAI Compatible** | `POST http://localhost:3000/v1/chat/completions` | `openai` Python/JS SDK, Cursor, LibreChat, Open WebUI |
-| **Anthropic Compatible** | `POST http://localhost:3000/v1/messages` | `anthropic` Python/JS SDK, Claude Code, Cline, Roo Code |
-| **Models Registry** | `GET http://localhost:3000/v1/models` | Any OpenAI-compatible model discovery tool |
+* Go to **API Keys & Providers** $\rightarrow$ Click **"+ Add Keys"** on your preferred provider (e.g. Groq or Gemini).
+* Paste all your API keys (one per line).
+* Select your **Active Provider** from the dropdown at the top.
 
 ---
 
-## 🌐 Custom & Different API URLs Supported
+## 💻 Client Configuration Guides
 
-You can connect **any custom 3rd-party API URL** through the gateway:
+### 1. OpenCode (`opencode.json`)
+In your project's root folder (or globally at `~/.config/opencode/opencode.json`), configure API Switch as a custom OpenAI provider:
 
-* **Custom OpenAI-compatible Endpoints**:
-  * **OpenRouter**: `https://openrouter.ai/api/v1`
-  * **Together AI**: `https://api.together.xyz/v1`
-  * **Mistral AI**: `https://api.mistral.ai/v1`
-  * **Perplexity**: `https://api.perplexity.ai`
-  * **Local Ollama**: `http://localhost:11434/v1`
-  * **vLLM / LM Studio / LocalAI**: `http://localhost:8000/v1` or `http://localhost:1234/v1`
-  * **Azure OpenAI**: Custom Azure deployment base URLs
-* **Custom Anthropic Endpoints**:
-  * Official Anthropic: `https://api.anthropic.com/v1`
-  * Custom proxy / AWS Bedrock / GCP Vertex Claude endpoints
-* **Google Gemini**:
-  * Official Gemini: `https://generativelanguage.googleapis.com` or custom proxy URLs
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "providers": {
+    "api-switch": {
+      "name": "API Switch Gateway",
+      "npm": "@ai-sdk/openai",
+      "settings": {
+        "baseURL": "http://localhost:3000/v1",
+        "apiKey": "sk_564dd7437hn3v7cx738m83v"
+      },
+      "models": {
+        "llama-3.3-70b-versatile": {
+          "displayName": "Llama 3.3 70B (Auto-Rotate)"
+        },
+        "gemini-2.0-flash": {
+          "displayName": "Gemini 2.0 Flash (Auto-Rotate)"
+        }
+      }
+    }
+  }
+}
+```
+
+Or pass via environment variables in terminal:
+```bash
+export OPENAI_BASE_URL="http://localhost:3000/v1"
+export OPENAI_API_KEY="sk_564dd7437hn3v7cx738m83v"
+opencode
+```
 
 ---
 
-### Python Example (`openai` SDK)
+### 2. Cursor / Open WebUI / LibreChat
+In settings:
+* **OpenAI Base URL:** `http://localhost:3000/v1`
+* **API Key:** `sk_564dd7437hn3v7cx738m83v` *(or whatever Master Key you set in Settings)*
+* **Model:** Choose any model configured on your active provider (e.g., `llama-3.3-70b-versatile`, `gemini-2.0-flash`, `gpt-4o-mini`).
+
+---
+
+### 3. VS Code Extensions (Cline / Roo Code / Continue)
+
+#### Cline / Roo Code:
+* **Provider:** `OpenAI Compatible`
+* **Base URL:** `http://localhost:3000/v1`
+* **API Key:** `sk_564dd7437hn3v7cx738m83v`
+* **Model ID:** `llama-3.3-70b-versatile`
+
+#### Continue.dev (`config.json`):
+```json
+{
+  "models": [
+    {
+      "title": "API Switch Auto-Rotate",
+      "provider": "openai",
+      "model": "llama-3.3-70b-versatile",
+      "apiKey": "sk_564dd7437hn3v7cx738m83v",
+      "apiBase": "http://localhost:3000/v1"
+    }
+  ]
+}
+```
+
+---
+
+### 4. Python (`openai` SDK)
 
 ```python
 from openai import OpenAI
 
-# Point OpenAI client to your local Master API Switch
 client = OpenAI(
     base_url="http://localhost:3000/v1",
-    api_key="sk-switch-master-key"
+    api_key="sk_564dd7437hn3v7cx738m83v"
 )
 
-# Request the virtual "master" route (auto-failover enabled)
 response = client.chat.completions.create(
-    model="master",
-    messages=[{"role": "user", "content": "Explain quantum entanglement in 2 sentences."}],
+    model="llama-3.3-70b-versatile",
+    messages=[{"role": "user", "content": "Explain async programming in 2 sentences."}],
     stream=True
 )
 
@@ -103,79 +195,118 @@ for chunk in response:
 
 ---
 
-### Node.js / TypeScript Example
+### 5. Python (`anthropic` SDK)
 
-```typescript
-import OpenAI from 'openai';
+```python
+import anthropic
 
-const openai = new OpenAI({
-  baseURL: 'http://localhost:3000/v1',
-  apiKey: 'sk-switch-master-key',
-});
+client = anthropic.Anthropic(
+    base_url="http://localhost:3000",
+    api_key="sk_564dd7437hn3v7cx738m83v"
+)
 
-const completion = await openai.chat.completions.create({
-  model: 'master', // Or 'fast', 'smart'
-  messages: [{ role: 'user', content: 'What is the speed of light?' }],
-});
+message = client.messages.create(
+    model="claude-3-5-sonnet-20241022",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Hello via Anthropic protocol!"}]
+)
 
-console.log(completion.choices[0].message.content);
+print(message.content[0].text)
 ```
 
 ---
 
-### cURL Example
+### 6. cURL
 
 ```bash
 curl http://localhost:3000/v1/chat/completions \
+  -H "Authorization: Bearer sk_564dd7437hn3v7cx738m83v" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer sk-switch-master-key" \
   -d '{
-    "model": "master",
-    "messages": [
-      {"role": "user", "content": "Hello, world!"}
-    ],
-    "stream": false
+    "model": "llama-3.3-70b-versatile",
+    "messages": [{"role": "user", "content": "Ping"}]
   }'
 ```
 
 ---
 
-## ⚙️ Architecture & Directory Structure
+## 📡 Gateway API Endpoints
 
-```text
-API Switch/
-├── src/
-│   ├── index.ts               # Express server entry point
-│   ├── types/
-│   │   ├── openai.ts          # Master OpenAI chat completions & chunk types
-│   │   └── provider.ts        # Provider configs, route schemas, audit log types
-│   ├── adapters/
-│   │   ├── base.ts            # Base ProviderAdapter interface & ProviderError
-│   │   ├── openai.ts          # Direct OpenAI, Groq, DeepSeek, Ollama adapter
-│   │   ├── anthropic.ts       # Anthropic Messages API bidirectional translator
-│   │   ├── gemini.ts          # Google Gemini GenerateContent translator
-│   │   └── index.ts           # Adapter registry
-│   ├── engine/
-│   │   ├── router.ts          # Routing & Failover execution engine
-│   │   └── keyPool.ts         # Multi-key rotation & cooldown manager
-│   ├── db/
-│   │   └── storage.ts         # JSON persistence manager (data/config.json, data/logs.json)
-│   └── routes/
-│       ├── v1/
-│       │   ├── chat.ts        # Master /v1/chat/completions endpoint
-│       │   └── models.ts      # Master /v1/models endpoint
-│       └── api/
-│           └── admin.ts       # Admin management API (CRUD providers, routes, logs)
-├── public/
-│   └── index.html             # Sleek dark-mode Web Admin Dashboard
-├── data/                      # Auto-created storage directory
-│   ├── config.json            # Persistent providers & route definitions
-│   └── logs.json              # Request audit trail & token tracking
-├── tsconfig.json
-└── package.json
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/v1/chat/completions` | Standard OpenAI chat completions (supports JSON and SSE streaming) |
+| `GET` | `/v1/models` | List all available models across configured providers |
+| `POST` | `/v1/messages` | Native Anthropic Claude Messages endpoint |
+| `GET` | `/health` | Server health check and uptime status |
+| `GET` | `/api/dashboard` | Returns providers, key pool status, stats, and recent logs |
+| `POST` | `/api/providers/:id/keys` | Add multiple API keys to a provider |
+| `DELETE` | `/api/providers/:id/keys/:keyId` | Remove a single key from a provider |
+| `POST` | `/api/providers/:id/keys/reset-cooldown` | Instantly reset rate-limit cooldown on all keys |
+| `POST` | `/api/providers` | Create or update a custom provider |
+| `POST` | `/api/test` | Live test endpoint with real-time SSE streaming for dashboard playground |
+| `POST` | `/api/cache/clear` | Clear the 0ms in-memory response cache |
+
+---
+
+## ⚙️ Configuration & Environment Variables
+
+You can customize the gateway via `.env` or in the **Settings** tab on the web dashboard:
+
+```env
+# Port to listen on (default: 3000)
+PORT=3000
+
+# Master API Key required by clients to authenticate with the gateway
+MASTER_API_KEY=sk_564dd7437hn3v7cx738m83v
 ```
 
 ---
 
-## 🛡️ License
-ISC
+## 📁 Project Structure
+
+```text
+API-Auto-Switch-Gateway-For-AI-Models/
+├── public/
+│   └── index.html             # Single-Page Web Admin Dashboard (Tailwind CSS, Icons)
+├── src/
+│   ├── index.ts               # Express server entry point & route definitions
+│   ├── adapters/              # Provider translation layers
+│   │   ├── base.ts            # Base ProviderAdapter interface & ProviderError
+│   │   ├── openai.ts          # Direct OpenAI, Groq, DeepSeek, Ollama adapter
+│   │   ├── anthropic.ts       # Anthropic Messages API translator
+│   │   ├── gemini.ts          # Google Gemini GenerateContent translator
+│   │   └── index.ts           # Adapter registry
+│   ├── db/
+│   │   └── storage.ts         # Persistent JSON storage & key pool state manager
+│   ├── engine/
+│   │   ├── router.ts          # Key rotation router with 429 auto-switch logic
+│   │   └── cache.ts           # Instant 0ms In-Memory response cache
+│   ├── routes/
+│   │   ├── v1/
+│   │   │   ├── chat.ts        # POST /v1/chat/completions & GET /v1/models
+│   │   │   └── anthropicMessages.ts # POST /v1/messages
+│   │   └── api/
+│   │       └── admin.ts       # Control plane REST API for dashboard
+│   └── types/
+│       └── openai.ts          # Standard OpenAI schemas
+├── package.json
+├── tsconfig.json
+└── README.md
+```
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! If you'd like to add support for more providers, optimize adapters, or enhance the dashboard:
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+---
+
+## 📄 License
+
+Distributed under the **ISC** License. See `LICENSE` for more information.
