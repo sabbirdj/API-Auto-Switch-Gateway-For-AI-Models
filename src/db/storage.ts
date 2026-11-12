@@ -83,8 +83,8 @@ function makeDefault(): AppConfig {
     settings: {
       port: 3000,
       masterApiKey: 'sk-switch-master-key',
-      defaultProviderId: 'groq',
-      defaultModel: 'llama-3.3-70b-versatile',
+      defaultProviderId: 'coarena-ai',
+      defaultModel: 'glm-5-3-flash',
       enableLogging: true,
       enableCache: true,
       cacheTtlSec: 600,
@@ -92,6 +92,20 @@ function makeDefault(): AppConfig {
       defaultTimeoutMs: 30000,
     },
     providers: [
+      {
+        id: 'coarena-ai',
+        name: 'Coarena Ai',
+        type: 'openai',
+        baseUrl: 'https://coarena.ai/api/v1',
+        keys: [],
+        models: [
+          'glm-5-3-flash',
+          'deepseek-v4-1-flash-1017',
+        ],
+        defaultModel: 'glm-5-3-flash',
+        enabled: true,
+        createdAt: Date.now(),
+      },
       {
         id: 'groq',
         name: 'Groq',
@@ -106,7 +120,7 @@ function makeDefault(): AppConfig {
           'gemma2-9b-it',
         ],
         defaultModel: 'llama-3.3-70b-versatile',
-        enabled: true,
+        enabled: false,
         createdAt: Date.now(),
       },
       {
