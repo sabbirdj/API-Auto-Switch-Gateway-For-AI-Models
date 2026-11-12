@@ -3,90 +3,140 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>API Auto-Switch Gateway</title>
+  <title>API Switch · Gateway Console</title>
+  <meta name="description" content="Manage AI providers, monitor requests, and test your gateway from one console.">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;550;600;650;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
-    body { font-family: system-ui, -apple-system, sans-serif; background: #0a0a0f; }
-    .key-row:hover { background: rgba(99,102,241,0.05); }
+    :root { color-scheme: dark; --bg: #0a0a0b; --sidebar: #101012; --surface: #141416; --line: #27272a; --muted: #a1a1aa; --accent: #8b5cf6; }
+    * { scrollbar-width: thin; scrollbar-color: #3f3f46 transparent; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: #d4d4d8; font-size: 14px; }
+    button, input, select, textarea { font: inherit; }
+    button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid #a78bfa; outline-offset: 3px; }
+    code, pre, .font-mono { font-family: 'JetBrains Mono', monospace; }
+    .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+    .stat-value { font-size: 26px; line-height: 1.2; font-weight: 600; letter-spacing: -.035em; color: #fafafa; font-variant-numeric: tabular-nums; }
+    .nav-item { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 40px; padding: 0 12px; border-radius: 7px; font-size: 13px; font-weight: 500; color: #a1a1aa; transition: .15s; text-align: left; white-space: nowrap; }
+    .nav-item i { width: 16px; text-align: center; font-size: 13px; color: #71717a; }
+    .nav-item:hover { background: #1c1c1f; color: #e4e4e7; }
+    .nav-active { background: #27272a; color: #fafafa; }
+    .nav-active i { color: #a78bfa; }
+    .key-row { border-bottom: 1px solid #202023; border-radius: 0; }
+    .key-row:last-child { border-bottom: 0; }
+    .key-row:hover { background: #1a1a1d; }
     .pulse { animation: pulse 2s infinite; }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-    pre { white-space: pre-wrap; word-break: break-all; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+    pre { white-space: pre-wrap; word-break: break-word; line-height: 1.7; }
+    .tab-button { transition: color .2s, background .2s, border-color .2s; }
+    .toast { animation: toast-in .2s ease-out; }
+    @keyframes toast-in { from { opacity: 0; transform: tranzincY(8px); } to { opacity: 1; transform: tranzincY(0); } }
+    @media (max-width: 1023px) { .nav-item { width: auto; padding: 0 14px; } }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
   </style>
 </head>
-<body class="text-slate-200 min-h-screen">
+<body class="text-zinc-200 min-h-screen">
 
 <!-- ── Header ── -->
-<header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-50">
-  <div class="max-w-6xl mx-auto px-5 h-14 flex items-center justify-between">
-    <div class="flex items-center gap-3">
-      <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-sm font-bold">🔀</div>
-      <div>
-        <span class="font-bold text-white text-sm">API Auto-Switch Gateway</span>
-        <span class="ml-2 text-[10px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 px-1.5 py-0.5 rounded font-mono">v1.0</span>
+<header class="border-b border-zinc-800 bg-[#101012] sticky top-0 z-50">
+  <div class="px-5 lg:px-7 h-16 flex items-center justify-between gap-6">
+    <div class="flex items-center gap-3.5 min-w-0">
+      <div class="w-8 h-8 rounded-lg bg-violet-600 flex items-center justify-center flex-shrink-0">
+        <i class="fa-solid fa-shuffle text-white text-xs"></i>
+      </div>
+      <div class="min-w-0">
+        <div class="flex items-center gap-2.5">
+          <span class="font-bold text-white text-[15px] tracking-tight">API Switch</span>
+          <span class="text-[10px] text-zinc-400 border border-zinc-700 px-1.5 py-0.5 rounded-md font-mono">v1.0</span>
+        </div>
+        <div class="text-[11px] text-zinc-500 mt-0.5">AI gateway control center</div>
       </div>
     </div>
-    <div class="flex items-center gap-3 text-xs">
-      <span class="text-slate-400">Endpoint:</span>
-      <code id="endpointUrl" class="text-indigo-300 font-mono bg-slate-800/80 px-2 py-1 rounded cursor-pointer" title="Click to copy" onclick="copy(this.innerText)">http://localhost:3000/v1</code>
-      <span class="text-slate-400 ml-1">Key:</span>
-      <code id="masterKeyDisplay" class="text-emerald-400 font-mono bg-slate-800/80 px-2 py-1 rounded cursor-pointer" title="Click to copy" onclick="copy(this.innerText)">...</code>
-      <span class="flex items-center gap-1 text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-full text-[11px] font-medium">
-        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse"></span>Live
+    <div class="flex items-center gap-2.5">
+      <div class="hidden xl:flex items-center gap-2 text-xs bg-zinc-900/60 border border-zinc-800 rounded-lg px-2.5 py-2">
+        <span class="text-zinc-500 pl-1">Endpoint</span>
+        <code id="endpointUrl" class="text-violet-300 text-[11px] cursor-pointer hover:text-violet-200" title="Click to copy" onclick="copy(this.innerText)">http://localhost:3000/v1</code>
+        <button onclick="copy(document.getElementById('endpointUrl').innerText)" class="text-zinc-500 hover:text-white px-1" aria-label="Copy endpoint"><i class="fa-regular fa-copy"></i></button>
+      </div>
+      <button onclick="copy(document.getElementById('masterKeyDisplay').innerText)" class="hidden md:flex items-center gap-2 text-xs bg-zinc-900/60 border border-zinc-800 rounded-lg px-3 py-2 hover:border-zinc-700 transition" title="Copy master key">
+        <i class="fa-solid fa-key text-zinc-500"></i>
+        <code id="masterKeyDisplay" class="text-zinc-300 text-[11px] max-w-36 truncate">...</code>
+        <i class="fa-regular fa-copy text-zinc-500"></i>
+      </button>
+      <span class="flex items-center gap-2 text-emerald-400 bg-emerald-500/[.07] border border-emerald-500/20 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse"></span><span class="hidden sm:inline">Gateway</span> online
       </span>
     </div>
   </div>
 </header>
 
-<div class="max-w-6xl mx-auto px-5 py-6 space-y-6">
+<div class="lg:grid lg:grid-cols-[220px_minmax(0,1fr)] min-h-[calc(100vh-64px)]">
+  <aside class="hidden lg:flex flex-col bg-[#101012] border-r border-zinc-800 p-4 sticky top-16 h-[calc(100vh-64px)]">
+    <div class="px-3 pt-2 pb-3 text-[10px] font-semibold text-zinc-600 uppercase tracking-[.14em]">Workspace</div>
+    <nav class="space-y-1" aria-label="Dashboard sections">
+      <button onclick="tab('keys')" id="nav-keys" class="nav-item nav-active"><i class="fa-solid fa-key"></i>Providers & keys</button>
+      <button onclick="tab('playground')" id="nav-playground" class="nav-item"><i class="fa-solid fa-flask"></i>Playground</button>
+      <button onclick="tab('logs')" id="nav-logs" class="nav-item"><i class="fa-solid fa-clock-rotate-left"></i>Request logs</button>
+      <button onclick="tab('connect')" id="nav-connect" class="nav-item"><i class="fa-solid fa-code"></i>Connect SDK</button>
+    </nav>
+    <div class="mt-6 px-3 pb-3 text-[10px] font-semibold text-zinc-600 uppercase tracking-[.14em]">System</div>
+    <button onclick="tab('settings')" id="nav-settings" class="nav-item"><i class="fa-solid fa-gear"></i>Settings</button>
+    <div class="mt-auto panel p-3.5">
+      <div class="flex items-center gap-2 text-xs font-medium text-zinc-300"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>All systems operational</div>
+      <p class="text-[11px] text-zinc-600 mt-2 leading-relaxed">Requests are monitored in real time.</p>
+    </div>
+  </aside>
+  <div class="min-w-0">
+    <div class="lg:hidden border-b border-zinc-800 px-4 py-3 flex gap-2 overflow-x-auto bg-[#101012]">
+      <button onclick="tab('keys')" id="mobile-keys" class="nav-item nav-active"><i class="fa-solid fa-key"></i>Providers</button>
+      <button onclick="tab('playground')" id="mobile-playground" class="nav-item"><i class="fa-solid fa-flask"></i>Playground</button>
+      <button onclick="tab('logs')" id="mobile-logs" class="nav-item"><i class="fa-solid fa-clock-rotate-left"></i>Logs</button>
+      <button onclick="tab('connect')" id="mobile-connect" class="nav-item"><i class="fa-solid fa-code"></i>SDK</button>
+      <button onclick="tab('settings')" id="mobile-settings" class="nav-item"><i class="fa-solid fa-gear"></i>Settings</button>
+    </div>
+    <main class="max-w-[1440px] mx-auto px-5 lg:px-8 py-8 space-y-7">
+  <section class="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+    <div>
+      <div class="text-xs font-medium text-zinc-500 mb-2">Workspace / Overview</div>
+      <h1 class="text-[26px] font-semibold text-white tracking-[-.03em]">Dashboard</h1>
+      <p class="text-[13px] text-zinc-500 mt-2">Monitor traffic and manage your AI infrastructure.</p>
+    </div>
+    <button onclick="refresh()" class="self-start sm:self-auto text-xs font-medium text-zinc-300 bg-zinc-900 border border-zinc-800 hover:border-zinc-600 hover:text-white px-3.5 py-2 rounded-lg flex items-center gap-2 transition">
+      <i class="fa-solid fa-rotate-right text-zinc-500"></i> Refresh data
+    </button>
+  </section>
 
   <!-- ── Stats row ── -->
-  <div class="grid grid-cols-2 md:grid-cols-5 gap-3" id="statsRow">
-    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
-      <div class="text-[11px] text-slate-400 uppercase tracking-wider">Requests</div>
-      <div id="st-total" class="text-2xl font-bold text-white mt-0.5">0</div>
+  <div class="panel grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 divide-x divide-y md:divide-y-0 divide-zinc-800 overflow-hidden" id="statsRow">
+    <div class="p-5">
+      <div class="flex items-center justify-between text-xs font-medium text-zinc-500"><span>Total requests</span><i class="fa-solid fa-arrow-trend-up text-zinc-600"></i></div>
+      <div id="st-total" class="stat-value mt-3">0</div>
+      <div class="text-[11px] text-zinc-600 mt-2">All providers</div>
     </div>
-    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
-      <div class="text-[11px] text-slate-400 uppercase tracking-wider">Auto-Switched</div>
-      <div id="st-switched" class="text-2xl font-bold text-amber-400 mt-0.5">0</div>
+    <div class="p-5">
+      <div class="flex items-center justify-between text-xs font-medium text-zinc-500"><span>Auto-switched</span><i class="fa-solid fa-shuffle text-zinc-600"></i></div>
+      <div id="st-switched" class="stat-value mt-3">0</div>
+      <div class="text-[11px] text-zinc-600 mt-2">Key recoveries</div>
     </div>
-    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
-      <div class="text-[11px] text-slate-400 uppercase tracking-wider">Success Rate</div>
-      <div id="st-rate" class="text-2xl font-bold text-emerald-400 mt-0.5">-</div>
+    <div class="p-5 border-t md:border-t-0 border-zinc-800">
+      <div class="flex items-center justify-between text-xs font-medium text-zinc-500"><span>Success rate</span><i class="fa-solid fa-circle-check text-zinc-600"></i></div>
+      <div id="st-rate" class="stat-value mt-3">—</div>
+      <div class="text-[11px] text-zinc-600 mt-2">Successful responses</div>
     </div>
-    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
-      <div class="text-[11px] text-slate-400 uppercase tracking-wider">Avg Latency (TTFT)</div>
-      <div id="st-latency" class="text-2xl font-bold text-indigo-400 mt-0.5">0 ms</div>
-      <div class="text-[10px] text-emerald-400 font-mono mt-0.5">⚡ 0ms Cache / Stream</div>
+    <div class="p-5 border-t md:border-t-0 border-zinc-800">
+      <div class="flex items-center justify-between text-xs font-medium text-zinc-500"><span>Avg. latency</span><i class="fa-solid fa-bolt text-zinc-600"></i></div>
+      <div id="st-latency" class="stat-value mt-3">0 ms</div>
+      <div class="text-[11px] text-zinc-600 mt-2">Time to first token</div>
     </div>
-    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
-      <div class="text-[11px] text-slate-400 uppercase tracking-wider">Total Tokens</div>
-      <div id="st-tokens" class="text-2xl font-bold text-violet-400 mt-0.5">0</div>
+    <div class="p-5 col-span-2 md:col-span-1 border-t md:border-t-0 border-zinc-800">
+      <div class="flex items-center justify-between text-xs font-medium text-zinc-500"><span>Tokens processed</span><i class="fa-solid fa-cube text-zinc-600"></i></div>
+      <div id="st-tokens" class="stat-value mt-3">0</div>
+      <div class="text-[11px] text-zinc-600 mt-2">Input + output</div>
     </div>
   </div>
 
-  <!-- ── Tabs ── -->
-  <div class="border-b border-slate-800 flex gap-1">
-    <button onclick="tab('keys')" id="btn-keys" class="tab-active px-5 py-2.5 text-sm font-medium rounded-t-lg border-b-2 border-indigo-500 text-indigo-400">
-      <i class="fa-solid fa-key mr-1.5"></i>API Keys & Providers
-    </button>
-    <button onclick="tab('playground')" id="btn-playground" class="tab-inactive px-5 py-2.5 text-sm font-medium text-slate-400 hover:text-slate-200 border-b-2 border-transparent">
-      <i class="fa-solid fa-flask mr-1.5"></i>Test Playground
-    </button>
-    <button onclick="tab('logs')" id="btn-logs" class="tab-inactive px-5 py-2.5 text-sm font-medium text-slate-400 hover:text-slate-200 border-b-2 border-transparent">
-      <i class="fa-solid fa-clock-rotate-left mr-1.5"></i>Live Logs
-    </button>
-    <button onclick="tab('connect')" id="btn-connect" class="tab-inactive px-5 py-2.5 text-sm font-medium text-slate-400 hover:text-slate-200 border-b-2 border-transparent">
-      <i class="fa-solid fa-code mr-1.5"></i>Connect SDK
-    </button>
-    <button onclick="tab('settings')" id="btn-settings" class="tab-inactive px-5 py-2.5 text-sm font-medium text-slate-400 hover:text-slate-200 border-b-2 border-transparent">
-      <i class="fa-solid fa-gear mr-1.5"></i>Settings
-    </button>
-    <div class="flex-1"></div>
-    <button onclick="refresh()" class="text-xs text-slate-400 hover:text-white px-3 flex items-center gap-1.5">
-      <i class="fa-solid fa-rotate-right"></i>
-    </button>
-  </div>
 
   <!-- ══════════════════════════════════════════════════════════
        TAB: API KEYS & PROVIDERS
@@ -94,31 +144,38 @@
   <div id="pane-keys" class="space-y-4">
 
     <!-- Active provider selector -->
-    <div class="bg-indigo-950/40 border border-indigo-500/30 rounded-xl p-4 flex flex-wrap items-center gap-4">
-      <div class="flex items-center gap-2">
-        <i class="fa-solid fa-route text-indigo-400"></i>
-        <span class="text-sm font-semibold text-white">Active Provider (default routing target):</span>
+    <div class="panel p-5 flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-6 relative overflow-hidden">
+      <div class="absolute inset-y-0 left-0 w-0.5 bg-violet-500"></div>
+      <div class="flex items-center gap-3.5 flex-1">
+        <div class="w-10 h-10 rounded-lg bg-violet-500/10 text-violet-400 flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-route"></i></div>
+        <div>
+          <label for="defaultProviderSelect" class="text-sm font-semibold text-white block">Default routing provider</label>
+          <p class="text-xs text-zinc-500 mt-1">Unavailable keys are automatically rotated to keep requests moving.</p>
+        </div>
       </div>
       <select id="defaultProviderSelect" onchange="setDefaultProvider(this.value)"
-        class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        class="w-full lg:w-72 bg-[#0b1220] border border-zinc-700 hover:border-zinc-600 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500/40 cursor-pointer transition">
       </select>
-      <span class="text-xs text-slate-400">When this provider's key hits a rate limit, the gateway auto-rotates to the next key.</span>
     </div>
 
     <!-- Per-provider key panels -->
+    <div class="flex items-end justify-between gap-4 pt-2">
+      <div><h2 class="text-base font-semibold text-white">Providers & API keys</h2><p class="text-xs text-zinc-500 mt-1">Manage key pools and monitor availability for each provider.</p></div>
+      <span class="hidden sm:flex text-[11px] text-zinc-500 items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>Auto-rotation enabled</span>
+    </div>
     <div id="providerPanels" class="space-y-4">
       <!-- Rendered by JS -->
     </div>
 
     <!-- Add Custom Provider button -->
     <button onclick="openCustomProviderModal()"
-      class="w-full border-2 border-dashed border-slate-700 hover:border-indigo-500/60 hover:bg-indigo-950/20 rounded-xl py-5 flex items-center justify-center gap-3 text-slate-500 hover:text-indigo-400 transition group">
-      <div class="w-8 h-8 rounded-lg border-2 border-dashed border-slate-600 group-hover:border-indigo-500 flex items-center justify-center transition">
+      class="w-full border border-dashed border-zinc-700 hover:border-violet-500/60 hover:bg-violet-500/[.03] rounded-xl py-5 flex items-center justify-center gap-3.5 text-zinc-500 hover:text-violet-300 transition group">
+      <div class="w-8 h-8 rounded-lg border-2 border-dashed border-zinc-600 group-hover:border-violet-500 flex items-center justify-center transition">
         <i class="fa-solid fa-plus text-sm"></i>
       </div>
       <div class="text-left">
         <div class="text-sm font-semibold">Add Custom Provider</div>
-        <div class="text-xs text-slate-600 group-hover:text-slate-500">OpenRouter, Together AI, Azure, vLLM, LM Studio, Mistral, Perplexity or any OpenAI-compatible API</div>
+        <div class="text-xs text-zinc-600 group-hover:text-zinc-500">OpenRouter, Together AI, Azure, vLLM, LM Studio, Mistral, Perplexity or any OpenAI-compatible API</div>
       </div>
     </button>
   </div>
@@ -127,30 +184,30 @@
        TAB: PLAYGROUND
        ══════════════════════════════════════════════════════════ -->
   <div id="pane-playground" class="hidden grid grid-cols-1 lg:grid-cols-2 gap-5">
-    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-      <h2 class="font-semibold text-white text-sm flex items-center gap-2"><i class="fa-solid fa-flask text-indigo-400"></i> Send a Test Request</h2>
+    <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-4">
+      <h2 class="font-semibold text-white text-sm flex items-center gap-2"><i class="fa-solid fa-flask text-violet-400"></i> Send a Test Request</h2>
       <div>
-        <label class="text-xs text-slate-400 block mb-1">Provider</label>
-        <select id="pgProvider" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"></select>
+        <label class="text-xs text-zinc-400 block mb-1">Provider</label>
+        <select id="pgProvider" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500"></select>
       </div>
       <div>
-        <label class="text-xs text-slate-400 block mb-1">Model</label>
-        <select id="pgModel" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"></select>
+        <label class="text-xs text-zinc-400 block mb-1">Model</label>
+        <select id="pgModel" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500"></select>
       </div>
       <div>
-        <label class="text-xs text-slate-400 block mb-1">Prompt</label>
-        <textarea id="pgPrompt" rows="5" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Type your message..."></textarea>
+        <label class="text-xs text-zinc-400 block mb-1">Prompt</label>
+        <textarea id="pgPrompt" rows="5" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white resize-none focus:outline-none focus:ring-2 focus:ring-violet-500" placeholder="Type your message..."></textarea>
       </div>
-      <button onclick="runPlayground()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold py-2.5 rounded-lg flex items-center justify-center gap-2 transition">
+      <button onclick="runPlayground()" class="w-full bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold py-2.5 rounded-lg flex items-center justify-center gap-2 transition">
         <i class="fa-solid fa-paper-plane"></i> Send (Auto-Key-Switch Enabled)
       </button>
     </div>
-    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col space-y-3">
-      <div class="flex items-center justify-between border-b border-slate-800 pb-2">
-        <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Response</span>
-        <span id="pgMeta" class="text-xs font-mono text-slate-500">Waiting...</span>
+    <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5 flex flex-col space-y-3">
+      <div class="flex items-center justify-between border-b border-zinc-800 pb-2">
+        <span class="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Response</span>
+        <span id="pgMeta" class="text-xs font-mono text-zinc-500">Waiting...</span>
       </div>
-      <div id="pgOutput" class="flex-1 min-h-[280px] max-h-[400px] overflow-y-auto bg-slate-950 rounded-lg p-4 text-xs font-mono text-slate-200 whitespace-pre-wrap">Output will appear here...</div>
+      <div id="pgOutput" class="flex-1 min-h-[280px] max-h-[400px] overflow-y-auto bg-zinc-950 rounded-lg p-4 text-xs font-mono text-zinc-200 whitespace-pre-wrap">Output will appear here...</div>
     </div>
   </div>
 
@@ -159,13 +216,13 @@
        ══════════════════════════════════════════════════════════ -->
   <div id="pane-logs" class="hidden space-y-3">
     <div class="flex items-center justify-between">
-      <h2 class="font-semibold text-white text-sm flex items-center gap-2"><i class="fa-solid fa-list-ul text-indigo-400"></i> Request Logs (auto-refresh every 5s)</h2>
+      <h2 class="font-semibold text-white text-sm flex items-center gap-2"><i class="fa-solid fa-list-ul text-violet-400"></i> Request Logs (auto-refresh every 5s)</h2>
       <button onclick="clearLogs()" class="text-xs text-rose-400 hover:text-rose-300 border border-rose-800/40 px-3 py-1.5 rounded-lg bg-rose-950/30 hover:bg-rose-900/40 transition"><i class="fa-solid fa-trash mr-1"></i>Clear</button>
     </div>
-    <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+    <div class="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
       <div class="overflow-x-auto">
         <table class="w-full text-xs text-left">
-          <thead class="bg-slate-800/50 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-700/50">
+          <thead class="bg-zinc-800/50 text-zinc-400 uppercase text-[10px] tracking-wider border-b border-zinc-700/50">
             <tr>
               <th class="py-2.5 px-4">Time</th>
               <th class="py-2.5 px-4">Provider</th>
@@ -177,7 +234,7 @@
               <th class="py-2.5 px-4">Tokens</th>
             </tr>
           </thead>
-          <tbody id="logRows" class="divide-y divide-slate-800/60 font-mono"></tbody>
+          <tbody id="logRows" class="divide-y divide-zinc-800/60 font-mono"></tbody>
         </table>
       </div>
     </div>
@@ -188,17 +245,17 @@
        ══════════════════════════════════════════════════════════ -->
   <div id="pane-connect" class="hidden space-y-5">
     <div>
-      <h2 class="font-semibold text-white text-sm mb-1"><i class="fa-solid fa-plug text-indigo-400 mr-2"></i>Connect Your App or SDK</h2>
-      <p class="text-xs text-slate-400">Point any client to your gateway URL. Keys auto-rotate transparently — your app doesn't need to know.</p>
+      <h2 class="font-semibold text-white text-sm mb-1"><i class="fa-solid fa-plug text-violet-400 mr-2"></i>Connect Your App or SDK</h2>
+      <p class="text-xs text-zinc-400">Point any client to your gateway URL. Keys auto-rotate transparently — your app doesn't need to know.</p>
     </div>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
 
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-3">
         <div class="flex justify-between items-center">
           <span class="font-semibold text-sm text-white flex items-center gap-2"><i class="fa-brands fa-python text-amber-400"></i> Python</span>
-          <button onclick="copy(document.getElementById('py-snippet').innerText)" class="text-xs text-slate-400 hover:text-white"><i class="fa-regular fa-copy"></i> Copy</button>
+          <button onclick="copy(document.getElementById('py-snippet').innerText)" class="text-xs text-zinc-400 hover:text-white"><i class="fa-regular fa-copy"></i> Copy</button>
         </div>
-        <pre class="bg-slate-950 p-3 rounded-lg text-xs text-emerald-300" id="py-snippet">from openai import OpenAI
+        <pre class="bg-zinc-950 p-3 rounded-lg text-xs text-emerald-300" id="py-snippet">from openai import OpenAI
 
 client = OpenAI(
     base_url="http://localhost:3000/v1",
@@ -216,12 +273,12 @@ for chunk in response:
         print(chunk.choices[0].delta.content, end="")</pre>
       </div>
 
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-3">
         <div class="flex justify-between items-center">
           <span class="font-semibold text-sm text-white flex items-center gap-2"><i class="fa-brands fa-node-js text-green-400"></i> Node.js / TypeScript</span>
-          <button onclick="copy(document.getElementById('node-snippet').innerText)" class="text-xs text-slate-400 hover:text-white"><i class="fa-regular fa-copy"></i> Copy</button>
+          <button onclick="copy(document.getElementById('node-snippet').innerText)" class="text-xs text-zinc-400 hover:text-white"><i class="fa-regular fa-copy"></i> Copy</button>
         </div>
-        <pre class="bg-slate-950 p-3 rounded-lg text-xs text-emerald-300" id="node-snippet">import OpenAI from 'openai';
+        <pre class="bg-zinc-950 p-3 rounded-lg text-xs text-emerald-300" id="node-snippet">import OpenAI from 'openai';
 
 const client = new OpenAI({
   baseURL: 'http://localhost:3000/v1',
@@ -235,12 +292,12 @@ const res = await client.chat.completions.create({
 console.log(res.choices[0].message.content);</pre>
       </div>
 
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-3">
         <div class="flex justify-between items-center">
           <span class="font-semibold text-sm text-white flex items-center gap-2"><i class="fa-solid fa-terminal"></i> cURL</span>
-          <button onclick="copy(document.getElementById('curl-snippet').innerText)" class="text-xs text-slate-400 hover:text-white"><i class="fa-regular fa-copy"></i> Copy</button>
+          <button onclick="copy(document.getElementById('curl-snippet').innerText)" class="text-xs text-zinc-400 hover:text-white"><i class="fa-regular fa-copy"></i> Copy</button>
         </div>
-        <pre class="bg-slate-950 p-3 rounded-lg text-xs text-emerald-300" id="curl-snippet">curl http://localhost:3000/v1/chat/completions \
+        <pre class="bg-zinc-950 p-3 rounded-lg text-xs text-emerald-300" id="curl-snippet">curl http://localhost:3000/v1/chat/completions \
   -H "Authorization: Bearer sk-switch-master-key" \
   -H "Content-Type: application/json" \
   -d '{
@@ -249,13 +306,13 @@ console.log(res.choices[0].message.content);</pre>
   }'</pre>
       </div>
 
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-3">
         <span class="font-semibold text-sm text-white flex items-center gap-2"><i class="fa-solid fa-robot text-violet-400"></i> Anthropic SDK (Claude-compatible)</span>
-        <div class="text-xs text-slate-400 space-y-1">
+        <div class="text-xs text-zinc-400 space-y-1">
           <p>Use endpoint: <code class="text-violet-300">http://localhost:3000</code></p>
           <p>Anthropic messages route: <code class="text-violet-300">POST /v1/messages</code></p>
         </div>
-        <pre class="bg-slate-950 p-3 rounded-lg text-xs text-emerald-300">import anthropic
+        <pre class="bg-zinc-950 p-3 rounded-lg text-xs text-emerald-300">import anthropic
 
 client = anthropic.Anthropic(
     base_url="http://localhost:3000",
@@ -276,58 +333,64 @@ print(msg.content[0].text)</pre>
        TAB: SETTINGS
        ══════════════════════════════════════════════════════════ -->
   <div id="pane-settings" class="hidden max-w-xl space-y-5">
-    <h2 class="font-semibold text-white text-sm flex items-center gap-2"><i class="fa-solid fa-gear text-indigo-400"></i> Gateway Settings</h2>
-    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+    <h2 class="font-semibold text-white text-sm flex items-center gap-2"><i class="fa-solid fa-gear text-violet-400"></i> Gateway Settings</h2>
+    <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-4">
       <div>
-        <label class="text-xs text-slate-400 block mb-1">Master API Key (clients use this to authenticate to your gateway)</label>
-        <input id="settingMasterKey" type="text" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm font-mono text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        <label class="text-xs text-zinc-400 block mb-1">Master API Key (clients use this to authenticate to your gateway)</label>
+        <input id="settingMasterKey" type="text" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm font-mono text-white focus:outline-none focus:ring-2 focus:ring-violet-500">
       </div>
       <div>
-        <label class="text-xs text-slate-400 block mb-1">Rate Limit Cooldown (seconds before a 429'd key is retried)</label>
-        <input id="settingCooldown" type="number" min="10" max="3600" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        <label class="text-xs text-zinc-400 block mb-1">Rate Limit Cooldown (seconds before a 429'd key is retried)</label>
+        <input id="settingCooldown" type="number" min="10" max="3600" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500">
       </div>
       <div>
-        <label class="text-xs text-slate-400 block mb-1">Gateway Port</label>
-        <input id="settingPort" type="number" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        <label class="text-xs text-zinc-400 block mb-1">Gateway Port</label>
+        <input id="settingPort" type="number" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500">
       </div>
-      <div class="flex items-center justify-between p-3 bg-slate-950/60 border border-slate-800 rounded-lg">
+      <div class="flex items-center justify-between p-3 bg-zinc-950/60 border border-zinc-800 rounded-lg">
         <div>
           <div class="text-xs font-semibold text-white flex items-center gap-1.5">
             <span>⚡ Instant 0ms In-Memory Cache</span>
             <span class="text-[9px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 px-1 py-0.2 rounded font-mono">0ms Latency</span>
           </div>
-          <div class="text-[11px] text-slate-400 mt-0.5">Return cached responses in &lt;1ms for identical prompt queries</div>
+          <div class="text-[11px] text-zinc-400 mt-0.5">Return cached responses in &lt;1ms for identical prompt queries</div>
         </div>
-        <input type="checkbox" id="settingCache" class="rounded w-4 h-4 text-indigo-600">
+        <input type="checkbox" id="settingCache" class="rounded w-4 h-4 text-violet-600">
       </div>
       <div class="flex items-center gap-3">
         <input type="checkbox" id="settingLogging" class="rounded">
-        <label for="settingLogging" class="text-sm text-slate-300">Enable request logging</label>
+        <label for="settingLogging" class="text-sm text-zinc-300">Enable request logging</label>
       </div>
       <div class="flex items-center gap-2 pt-1">
-        <button onclick="saveSettings()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition">Save Settings</button>
-        <button onclick="clearCache()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs px-3 py-2 rounded-lg transition">Clear 0ms Cache</button>
+        <button onclick="saveSettings()" class="bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition">Save Settings</button>
+        <button onclick="clearCache()" class="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 text-xs px-3 py-2 rounded-lg transition">Clear 0ms Cache</button>
       </div>
       <p id="settingSaved" class="text-xs text-emerald-400 hidden">✅ Settings saved! Restart the server to apply port changes.</p>
     </div>
   </div>
 
+    </main>
+    <footer class="max-w-[1440px] mx-auto px-5 lg:px-8 py-5 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-zinc-600 border-t border-zinc-800/70">
+      <span>API Switch · Local AI gateway</span>
+      <span class="flex items-center gap-1.5"><i class="fa-solid fa-shield-halved"></i>Your keys stay on this machine</span>
+    </footer>
+  </div>
 </div>
 
 <!-- ── Add Keys Modal ── -->
 <div id="keyModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
-  <div class="bg-slate-900 border border-slate-800 rounded-xl w-full max-w-md p-6 space-y-4 shadow-2xl">
+  <div class="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-md p-6 space-y-4 shadow-2xl">
     <div class="flex items-center justify-between">
       <h3 class="font-bold text-white" id="keyModalTitle">Add API Keys</h3>
-      <button onclick="closeKeyModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      <button onclick="closeKeyModal()" class="text-zinc-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
     </div>
-    <p class="text-xs text-slate-400">Paste your API keys below — <strong class="text-white">one key per line</strong>. The gateway will automatically rotate between them when one hits a rate limit.</p>
+    <p class="text-xs text-zinc-400">Paste your API keys below — <strong class="text-white">one key per line</strong>. The gateway will automatically rotate between them when one hits a rate limit.</p>
     <textarea id="keyModalInput" rows="8"
-      class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-xs font-mono text-emerald-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+      class="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-3 text-xs font-mono text-emerald-300 focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
       placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx&#10;sk-yyyyyyyyyyyyyyyyyyyy&#10;gsk_aaaaaaa...&#10;(one key per line)"></textarea>
     <div class="flex gap-2 justify-end">
-      <button onclick="closeKeyModal()" class="text-slate-400 text-sm px-4 py-2 hover:text-white">Cancel</button>
-      <button onclick="submitKeys()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-5 py-2 rounded-lg flex items-center gap-2 transition">
+      <button onclick="closeKeyModal()" class="text-zinc-400 text-sm px-4 py-2 hover:text-white">Cancel</button>
+      <button onclick="submitKeys()" class="bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold px-5 py-2 rounded-lg flex items-center gap-2 transition">
         <i class="fa-solid fa-plus"></i> Add Keys
       </button>
     </div>
@@ -336,21 +399,21 @@ print(msg.content[0].text)</pre>
 
 <!-- ── Add / Edit Custom Provider Modal ── -->
 <div id="customProviderModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
-  <div class="bg-slate-900 border border-slate-800 rounded-xl w-full max-w-lg p-6 space-y-4 shadow-2xl">
+  <div class="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-lg p-6 space-y-4 shadow-2xl">
     <div class="flex items-center justify-between">
       <h3 class="font-bold text-white text-base" id="cpModalTitle">Add Custom Provider</h3>
-      <button onclick="closeCustomProviderModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      <button onclick="closeCustomProviderModal()" class="text-zinc-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <input type="hidden" id="cpId">
     
     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
       <div>
-        <label class="text-xs text-slate-300 block mb-1">Provider Name</label>
-        <input id="cpName" type="text" placeholder="e.g. OpenRouter, Together AI" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        <label class="text-xs text-zinc-300 block mb-1">Provider Name</label>
+        <input id="cpName" type="text" placeholder="e.g. OpenRouter, Together AI" class="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-violet-500">
       </div>
       <div>
-        <label class="text-xs text-slate-300 block mb-1">Protocol / Adapter</label>
-        <select id="cpType" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        <label class="text-xs text-zinc-300 block mb-1">Protocol / Adapter</label>
+        <select id="cpType" class="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-violet-500">
           <option value="openai">OpenAI Compatible (Most common)</option>
           <option value="anthropic">Anthropic Messages</option>
           <option value="gemini">Google Gemini</option>
@@ -360,29 +423,29 @@ print(msg.content[0].text)</pre>
     </div>
 
     <div>
-      <label class="text-xs text-slate-300 block mb-1">Base URL (API Endpoint)</label>
-      <input id="cpBaseUrl" type="text" placeholder="https://openrouter.ai/api/v1 or http://localhost:8000/v1" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      <label class="text-xs text-zinc-300 block mb-1">Base URL (API Endpoint)</label>
+      <input id="cpBaseUrl" type="text" placeholder="https://openrouter.ai/api/v1 or http://localhost:8000/v1" class="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:ring-2 focus:ring-violet-500">
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
       <div>
-        <label class="text-xs text-slate-300 block mb-1">Default Model</label>
-        <input id="cpDefaultModel" type="text" placeholder="e.g. glm-5-3-flash" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        <label class="text-xs text-zinc-300 block mb-1">Default Model</label>
+        <input id="cpDefaultModel" type="text" placeholder="e.g. glm-5-3-flash" class="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:ring-2 focus:ring-violet-500">
       </div>
       <div>
-        <label class="text-xs text-slate-300 block mb-1">Available Models (comma separated)</label>
-        <input id="cpModels" type="text" placeholder="model-1, model-2, model-3" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        <label class="text-xs text-zinc-300 block mb-1">Available Models (comma separated)</label>
+        <input id="cpModels" type="text" placeholder="model-1, model-2, model-3" class="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:ring-2 focus:ring-violet-500">
       </div>
     </div>
 
     <div>
-      <label class="text-xs text-slate-300 block mb-1">API Keys (One per line for auto-switching)</label>
-      <textarea id="cpKeys" rows="3" placeholder="sk-or-v1-xxxxxx&#10;sk-or-v1-yyyyyy&#10;(optional, you can also add keys later)" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs font-mono text-emerald-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"></textarea>
+      <label class="text-xs text-zinc-300 block mb-1">API Keys (One per line for auto-switching)</label>
+      <textarea id="cpKeys" rows="3" placeholder="sk-or-v1-xxxxxx&#10;sk-or-v1-yyyyyy&#10;(optional, you can also add keys later)" class="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-2.5 text-xs font-mono text-emerald-300 focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"></textarea>
     </div>
 
-    <div class="flex gap-2 justify-end pt-2 border-t border-slate-800">
-      <button onclick="closeCustomProviderModal()" class="text-slate-400 text-sm px-4 py-2 hover:text-white">Cancel</button>
-      <button onclick="submitCustomProvider()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-5 py-2 rounded-lg flex items-center gap-2 transition">
+    <div class="flex gap-2 justify-end pt-2 border-t border-zinc-800">
+      <button onclick="closeCustomProviderModal()" class="text-zinc-400 text-sm px-4 py-2 hover:text-white">Cancel</button>
+      <button onclick="submitCustomProvider()" class="bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold px-5 py-2 rounded-lg flex items-center gap-2 transition">
         <i class="fa-solid fa-check"></i> Save Provider
       </button>
     </div>
@@ -399,11 +462,14 @@ print(msg.content[0].text)</pre>
     localStorage.setItem('activeTab', id);
     panes.forEach(p => {
       document.getElementById(`pane-${p}`).classList.add('hidden');
-      const btn = document.getElementById(`btn-${p}`);
-      btn.className = 'tab-inactive px-5 py-2.5 text-sm font-medium text-slate-400 hover:text-slate-200 border-b-2 border-transparent';
+      ['nav', 'mobile'].forEach(prefix => {
+        document.getElementById(`${prefix}-${p}`)?.classList.remove('nav-active');
+      });
     });
     document.getElementById(`pane-${id}`).classList.remove('hidden');
-    document.getElementById(`btn-${id}`).className = 'tab-active px-5 py-2.5 text-sm font-medium rounded-t-lg border-b-2 border-indigo-500 text-indigo-400';
+    ['nav', 'mobile'].forEach(prefix => {
+      document.getElementById(`${prefix}-${id}`)?.classList.add('nav-active');
+    });
     if (id === 'logs') loadLogs();
   }
 
@@ -481,11 +547,11 @@ print(msg.content[0].text)</pre>
     container.innerHTML = providers.map(prov => {
       const badgeClass = prov.enabled
         ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-        : 'bg-slate-700/50 text-slate-500 border-slate-600/20';
+        : 'bg-zinc-700/50 text-zinc-500 border-zinc-600/20';
 
       const keyRows = prov.keys.length === 0
-        ? `<div class="text-center py-6 text-slate-500 text-xs">
-             <i class="fa-solid fa-key text-slate-700 text-2xl block mb-2"></i>
+        ? `<div class="text-center py-6 text-zinc-500 text-xs">
+             <i class="fa-solid fa-key text-zinc-700 text-2xl block mb-2"></i>
              No keys yet — click "Add Keys" to paste your API keys
            </div>`
         : prov.keys.map((k, i) => {
@@ -493,7 +559,7 @@ print(msg.content[0].text)</pre>
               ? 'bg-emerald-400'
               : k.status === 'cooldown'
               ? 'bg-amber-400 pulse'
-              : 'bg-slate-600';
+              : 'bg-zinc-600';
             const statusLabel = k.status === 'active' ? 'Active'
               : k.status === 'cooldown' ? `Cooldown ${Math.ceil(k.cooldownRemainsMs/1000)}s`
               : 'Disabled';
@@ -503,22 +569,23 @@ print(msg.content[0].text)</pre>
             return `
               <div class="key-row flex items-center gap-3 px-4 py-2.5 rounded-lg transition group">
                 <span class="w-5 h-5 rounded-full ${statusDot} flex-shrink-0 border border-white/10"></span>
-                <span class="font-mono text-xs text-slate-300 flex-1 truncate">${maskedKey}</span>
-                <span class="text-[10px] font-medium ${k.status === 'active' ? 'text-emerald-400' : k.status === 'cooldown' ? 'text-amber-400' : 'text-slate-500'}">${statusLabel}</span>
-                <span class="text-[10px] text-slate-500">Used: ${k.usageCount ?? 0}</span>
-                <span class="text-[10px] text-slate-500">Fails: ${k.failureCount ?? 0}</span>
-                <button onclick="removeKey('${prov.id}','${k.id}')" class="text-slate-600 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition text-xs ml-1" title="Remove key">
+                <span class="font-mono text-xs text-zinc-300 flex-1 truncate">${maskedKey}</span>
+                <span class="text-[10px] font-medium ${k.status === 'active' ? 'text-emerald-400' : k.status === 'cooldown' ? 'text-amber-400' : 'text-zinc-500'}">${statusLabel}</span>
+                <span class="text-[10px] text-zinc-500">Used: ${k.usageCount ?? 0}</span>
+                <span class="text-[10px] text-zinc-500">Fails: ${k.failureCount ?? 0}</span>
+                <button onclick="removeKey('${prov.id}','${k.id}')" class="text-zinc-600 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition text-xs ml-1" title="Remove key">
                   <i class="fa-solid fa-trash-can"></i>
                 </button>
               </div>`;
           }).join('');
 
       return `
-        <div class="bg-slate-900 border ${prov.enabled ? 'border-slate-800' : 'border-slate-800/40 opacity-60'} rounded-xl overflow-hidden">
-          <div class="flex items-center justify-between px-5 py-3.5 border-b border-slate-800/60 bg-slate-800/20">
-            <div class="flex items-center gap-3">
-              <div class="text-sm font-bold text-white">${prov.name}</div>
-              <code class="text-[10px] text-slate-500 font-mono bg-slate-800 px-1.5 py-0.5 rounded">${prov.type}</code>
+        <div class="panel ${prov.enabled ? '' : 'opacity-60'} overflow-hidden">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 px-5 py-4 border-b border-zinc-800/70 bg-zinc-800/10">
+            <div class="flex items-center gap-3 flex-wrap">
+              <div class="w-9 h-9 rounded-lg bg-violet-500/10 text-violet-400 flex items-center justify-center text-sm"><i class="fa-solid fa-server"></i></div>
+              <div class="text-sm font-semibold text-white">${prov.name}</div>
+              <code class="text-[10px] text-zinc-500 font-mono bg-zinc-800/70 border border-zinc-700/50 px-1.5 py-0.5 rounded">${prov.type}</code>
               <span class="text-[10px] border px-1.5 py-0.5 rounded-full font-medium ${badgeClass}">
                 ${prov.activeKeys}/${prov.totalKeys} keys active
               </span>
@@ -529,24 +596,24 @@ print(msg.content[0].text)</pre>
                   <i class="fa-solid fa-rotate-left mr-1"></i>Reset Cooldown
                 </button>` : ''}
               <button onclick="openKeyModal('${prov.id}','${prov.name}')"
-                class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition font-medium">
+                class="text-xs bg-violet-600 hover:bg-violet-500 text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition font-medium">
                 <i class="fa-solid fa-plus"></i> Add Keys
               </button>
               <label class="relative inline-flex items-center cursor-pointer">
                 <input type="checkbox" ${prov.enabled ? 'checked' : ''} onchange="toggleProvider('${prov.id}', this.checked)" class="sr-only peer">
-                <div class="w-9 h-5 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                <div class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:after:tranzinc-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-violet-600"></div>
               </label>
-              <button onclick="editProvider('${prov.id}')" title="Edit provider details" class="text-slate-400 hover:text-indigo-400 px-1.5 py-1 text-xs transition">
+              <button onclick="editProvider('${prov.id}')" title="Edit provider details" class="text-zinc-400 hover:text-violet-400 px-1.5 py-1 text-xs transition">
                 <i class="fa-solid fa-pen-to-square"></i>
               </button>
-              <button onclick="deleteProvider('${prov.id}', '${prov.name}')" title="Delete provider" class="text-slate-500 hover:text-rose-400 px-1.5 py-1 text-xs transition">
+              <button onclick="deleteProvider('${prov.id}', '${prov.name}')" title="Delete provider" class="text-zinc-500 hover:text-rose-400 px-1.5 py-1 text-xs transition">
                 <i class="fa-solid fa-trash"></i>
               </button>
             </div>
           </div>
           <div class="p-2 space-y-0.5">${keyRows}</div>
-          <div class="px-4 py-2 border-t border-slate-800/60 flex items-center gap-4 text-xs text-slate-500">
-            <code class="text-slate-600 truncate max-w-sm">${prov.baseUrl || '(default endpoint)'}</code>
+          <div class="px-4 py-2 border-t border-zinc-800/60 flex items-center gap-4 text-xs text-zinc-500">
+            <code class="text-zinc-600 truncate max-w-sm">${prov.baseUrl || '(default endpoint)'}</code>
             ${prov.keys.length > 0 ? `<button onclick="clearKeys('${prov.id}')" class="text-rose-700 hover:text-rose-500 ml-auto">Clear all keys</button>` : ''}
           </div>
         </div>`;
@@ -709,7 +776,7 @@ print(msg.content[0].text)</pre>
     const out = document.getElementById('pgOutput');
     const meta = document.getElementById('pgMeta');
     out.innerText = '';
-    meta.innerHTML = '<span class="text-indigo-400"><i class="fa-solid fa-spinner fa-spin"></i> Connecting...</span>';
+    meta.innerHTML = '<span class="text-violet-400"><i class="fa-solid fa-spinner fa-spin"></i> Connecting...</span>';
 
     const start = Date.now();
     let ttft = 0;
@@ -780,7 +847,7 @@ print(msg.content[0].text)</pre>
     const { logs } = await res.json();
     const tbody = document.getElementById('logRows');
     if (!logs || logs.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="8" class="text-center py-6 text-slate-500 text-xs">No logs yet. Make a request first!</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center py-6 text-zinc-500 text-xs">No logs yet. Make a request first!</td></tr>';
       return;
     }
     tbody.innerHTML = logs.map(l => {
@@ -791,20 +858,20 @@ print(msg.content[0].text)</pre>
         : `<span class="text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded text-[10px]">${l.statusCode}</span>`;
       const switched = l.switchedKeys
         ? '<span class="text-amber-400 font-semibold">🔄 Yes</span>'
-        : '<span class="text-slate-600">—</span>';
+        : '<span class="text-zinc-600">—</span>';
       const latencyBadge = l.cached
         ? '<span class="text-emerald-400 bg-emerald-500/15 border border-emerald-500/25 px-1.5 py-0.5 rounded text-[10px] font-bold">⚡ 0 ms (Cache)</span>'
-        : `<span class="text-slate-300 font-mono">${l.ttftMs ?? l.latencyMs} ms</span>`;
+        : `<span class="text-zinc-300 font-mono">${l.ttftMs ?? l.latencyMs} ms</span>`;
       const tokens = l.tokens?.total ? l.tokens.total.toLocaleString() : '—';
-      return `<tr class="hover:bg-slate-800/30 transition text-[11px]">
-        <td class="py-2.5 px-4 text-slate-400">${t}</td>
+      return `<tr class="hover:bg-zinc-800/30 transition text-[11px]">
+        <td class="py-2.5 px-4 text-zinc-400">${t}</td>
         <td class="py-2.5 px-4 text-white font-semibold">${l.provider}</td>
-        <td class="py-2.5 px-4 text-indigo-300">${l.keyLabel}</td>
-        <td class="py-2.5 px-4 text-slate-300">${l.model}</td>
+        <td class="py-2.5 px-4 text-violet-300">${l.keyLabel}</td>
+        <td class="py-2.5 px-4 text-zinc-300">${l.model}</td>
         <td class="py-2.5 px-4">${badge}</td>
         <td class="py-2.5 px-4">${latencyBadge}</td>
         <td class="py-2.5 px-4">${switched}</td>
-        <td class="py-2.5 px-4 text-slate-400">${tokens}</td>
+        <td class="py-2.5 px-4 text-zinc-400">${tokens}</td>
       </tr>`;
     }).join('');
   }
@@ -865,7 +932,7 @@ print(msg.content[0].text)</pre>
   }
   function showToast(msg) {
     const t = document.createElement('div');
-    t.className = 'fixed bottom-5 right-5 bg-slate-800 border border-slate-700 text-white text-sm px-4 py-2.5 rounded-xl shadow-2xl z-[100] transition';
+    t.className = 'fixed bottom-5 right-5 bg-zinc-800 border border-zinc-700 text-white text-sm px-4 py-2.5 rounded-xl shadow-2xl z-[100] transition';
     t.innerText = msg;
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 2500);
