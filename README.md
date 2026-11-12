@@ -104,31 +104,39 @@ Open your browser and navigate to:
 ## 💻 Client Configuration Guides
 
 ### 1. OpenCode (`opencode.json`)
-In your project's root folder (or globally at `~/.config/opencode/opencode.json`), configure API Switch as a custom OpenAI provider:
+In your project's root folder (or globally at `~/.config/opencode/opencode.json`), configure API Switch as a custom OpenAI-compatible provider:
+
+> **⚠️ Important (OpenCode V2):** Use the `"package"` field — **not** `"npm"`. The legacy `"npm": "@ai-sdk/openai"` field is rejected by OpenCode V2 and causes `SessionRunnerModel.UnsupportedPackageError` at runtime.
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
+  "model": "api-switch/glm-5-3-flash",
   "providers": {
     "api-switch": {
       "name": "API Switch Gateway",
-      "npm": "@ai-sdk/openai",
+      "env": ["API_SWITCH_KEY"],
+      "package": "@opencode/ai/providers/openai-compatible",
       "settings": {
         "baseURL": "http://localhost:3000/v1",
         "apiKey": "sk_564dd7437hn3v7cx738m83v"
       },
       "models": {
         "llama-3.3-70b-versatile": {
-          "displayName": "Llama 3.3 70B (Auto-Rotate)"
+          "name": "Llama 3.3 70B (Auto-Rotate)",
+          "limit": { "context": 128000, "output": 32000 }
         },
         "gemini-2.0-flash": {
-          "displayName": "Gemini 2.0 Flash (Auto-Rotate)"
+          "name": "Gemini 2.0 Flash (Auto-Rotate)",
+          "limit": { "context": 1000000, "output": 64000 }
         }
       }
     }
   }
 }
 ```
+
+> **Tip:** Model keys in the `models` map must match the model IDs your gateway exposes (check `GET /v1/models`). Add any model your active provider serves — e.g. `glm-5-3-flash`, `deepseek-v4-1-flash-1017`, `gpt-4o-mini`. Use `limit` to declare each model's real context/output window. To make a model the default, set the top-level `"model"` key to `api-switch/<model-id>`.
 
 Or pass via environment variables in terminal:
 ```bash
@@ -201,12 +209,14 @@ for chunk in response:
 import anthropic
 
 client = anthropic.Anthropic(
-    base_url="http://localhost:3000",
+    base_url="http://localhost:3000",  # SDK appends /v1/messages itself — don't add /v1
     api_key="sk_564dd7437hn3v7cx738m83v"
 )
 
 message = client.messages.create(
-    model="claude-3-5-sonnet-20241022",
+    # Use any model ID the gateway exposes (GET /v1/models).
+    # Requests are translated and routed to your active provider.
+    model="claude-3-5-sonnet-20241022",  # or e.g. "glm-5-3-flash", "llama-3.3-70b-versatile"
     max_tokens=1024,
     messages=[{"role": "user", "content": "Hello via Anthropic protocol!"}]
 )
