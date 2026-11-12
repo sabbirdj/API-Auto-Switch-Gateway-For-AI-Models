@@ -382,6 +382,7 @@ print(msg.content[0].text)</pre>
   // ── Tab switching ─────────────────────────────────────────────────────────
   const panes = ['keys','playground','logs','connect','settings'];
   function tab(id) {
+    localStorage.setItem('activeTab', id);
     panes.forEach(p => {
       document.getElementById(`pane-${p}`).classList.add('hidden');
       const btn = document.getElementById(`btn-${p}`);
@@ -393,25 +394,38 @@ print(msg.content[0].text)</pre>
   }
 
   // ── Load all dashboard data ───────────────────────────────────────────────
-  async function refresh() {
+  async function refresh(full = true) {
     try {
       const res = await fetch('/api/dashboard');
       data = await res.json();
       renderStats(data.stats);
-      renderProviders(data.providers);
-      renderSettings(data.settings);
       document.getElementById('masterKeyDisplay').innerText = data.settings.masterApiKey || 'None';
-      // Update default provider selector
+
+      if (full) {
+        renderProviders(data.providers);
+        renderSettings(data.settings);
+      }
+
+      // Update default provider selector preserving current selection
       const sel = document.getElementById('defaultProviderSelect');
+      const currentSelected = sel.value || data.settings.defaultProviderId;
       sel.innerHTML = data.providers.map(p =>
-        `<option value="${p.id}" ${p.id === data.settings.defaultProviderId ? 'selected' : ''}>${p.name} (${p.activeKeys}/${p.totalKeys} keys active)</option>`
+        `<option value="${p.id}" ${p.id === currentSelected ? 'selected' : ''}>${p.name} (${p.activeKeys}/${p.totalKeys} keys active)</option>`
       ).join('');
-      // Playground provider options
+      sel.value = currentSelected;
+
+      // Playground provider options - preserve selection
       const pgProv = document.getElementById('pgProvider');
-      pgProv.innerHTML = data.providers.map(p =>
-        `<option value="${p.id}">${p.name}</option>`
+      const currentPgPid = pgProv.value || data.settings.defaultProviderId;
+      const newProvOptions = data.providers.map(p =>
+        `<option value="${p.id}" ${p.id === currentPgPid ? 'selected' : ''}>${p.name}</option>`
       ).join('');
-      updatePgModels();
+
+      if (pgProv.innerHTML !== newProvOptions) {
+        pgProv.innerHTML = newProvOptions;
+        pgProv.value = currentPgPid;
+        updatePgModels();
+      }
     } catch(e) {
       console.error('Refresh failed:', e);
     }
@@ -422,7 +436,14 @@ print(msg.content[0].text)</pre>
     const pid = document.getElementById('pgProvider').value;
     const prov = data.providers.find(p => p.id === pid);
     const pgModel = document.getElementById('pgModel');
-    pgModel.innerHTML = (prov?.models || []).map(m => `<option>${m}</option>`).join('');
+    const currentModel = pgModel.value;
+    const models = prov?.models || [];
+    pgModel.innerHTML = models.map(m =>
+      `<option value="${m}" ${m === currentModel ? 'selected' : ''}>${m}</option>`
+    ).join('');
+    if (currentModel && models.includes(currentModel)) {
+      pgModel.value = currentModel;
+    }
   }
   document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('pgProvider')?.addEventListener('change', updatePgModels);
@@ -576,7 +597,7 @@ print(msg.content[0].text)</pre>
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ defaultProviderId: providerId }),
     });
-    refresh();
+    showToast('✅ Active provider updated');
   }
 
   // ── Custom Provider Modal ────────────────────────────────────────────────
@@ -735,10 +756,19 @@ print(msg.content[0].text)</pre>
   // ── Settings ──────────────────────────────────────────────────────────────
   function renderSettings(s) {
     if (!s) return;
-    document.getElementById('settingMasterKey').value = s.masterApiKey ?? '';
-    document.getElementById('settingCooldown').value = s.cooldownSec ?? 60;
-    document.getElementById('settingPort').value = s.port ?? 3000;
-    document.getElementById('settingLogging').checked = !!s.enableLogging;
+    const active = document.activeElement;
+    if (active?.id !== 'settingMasterKey') {
+      document.getElementById('settingMasterKey').value = s.masterApiKey ?? '';
+    }
+    if (active?.id !== 'settingCooldown') {
+      document.getElementById('settingCooldown').value = s.cooldownSec ?? 60;
+    }
+    if (active?.id !== 'settingPort') {
+      document.getElementById('settingPort').value = s.port ?? 3000;
+    }
+    if (active?.id !== 'settingLogging') {
+      document.getElementById('settingLogging').checked = !!s.enableLogging;
+    }
   }
   async function saveSettings() {
     const payload = {
@@ -755,7 +785,7 @@ print(msg.content[0].text)</pre>
     const msg = document.getElementById('settingSaved');
     msg.classList.remove('hidden');
     setTimeout(() => msg.classList.add('hidden'), 3000);
-    refresh();
+    refresh(false);
   }
 
   // ── Utilities ─────────────────────────────────────────────────────────────
@@ -770,11 +800,22 @@ print(msg.content[0].text)</pre>
     setTimeout(() => t.remove(), 2500);
   }
 
-  // ── Auto-refresh ──────────────────────────────────────────────────────────
-  refresh();
-  setInterval(() => {
-    refresh();
-    if (!document.getElementById('pane-logs').classList.contains('hidden')) loadLogs();
+  // ── Startup & Background Polling ──────────────────────────────────────────
+  const savedTab = localStorage.getItem('activeTab') || 'keys';
+  tab(savedTab);
+  refresh(true);
+
+  // Background polling: ONLY updates numerical stats & logs
+  // NEVER wipes inputs, dropdowns, or switches tabs!
+  setInterval(async () => {
+    try {
+      const res = await fetch('/api/dashboard');
+      const d = await res.json();
+      renderStats(d.stats);
+      if (!document.getElementById('pane-logs').classList.contains('hidden')) {
+        loadLogs();
+      }
+    } catch (e) {}
   }, 5000);
 </script>
 </body>
